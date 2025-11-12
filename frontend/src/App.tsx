@@ -12,13 +12,13 @@ import { CheckoutPage } from "./components/CheckoutPage";
 import { AdminDashboard } from "./components/AdminDashboard";
 import { Toaster } from "./components/ui/sonner";
 
-type Page = 
-  | "landing" 
-  | "login" 
-  | "signup" 
-  | "dashboard" 
-  | "shop" 
-  | "auctions" 
+type Page =
+  | "landing"
+  | "login"
+  | "signup"
+  | "dashboard"
+  | "shop"
+  | "auctions"
   | "categories"
   | "about"
   | "contact"
@@ -43,7 +43,7 @@ export default function App() {
   };
 
   const handleAddToCart = () => {
-    setCartItemsCount(prev => prev + 1);
+    setCartItemsCount((prev) => prev + 1);
   };
 
   const renderPage = () => {
@@ -65,7 +65,12 @@ export default function App() {
       case "auction":
         return <AuctionPage onNavigate={handleNavigate} />;
       case "product":
-        return <ProductPage onNavigate={handleNavigate} onAddToCart={handleAddToCart} />;
+        return (
+          <ProductPage
+            onNavigate={handleNavigate}
+            onAddToCart={handleAddToCart}
+          />
+        );
       case "cart":
         return <CartPage onNavigate={handleNavigate} />;
       case "checkout":
@@ -89,13 +94,11 @@ export default function App() {
           cartItemsCount={cartItemsCount}
         />
       )}
-      
-      <main>
-        {renderPage()}
-      </main>
-      
+
+      <main>{renderPage()}</main>
+
       {showHeaderFooter && <Footer />}
-      
+
       <Toaster />
     </div>
   );
