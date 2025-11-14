@@ -11,14 +11,15 @@ import { CartPage } from "./components/CartPage";
 import { CheckoutPage } from "./components/CheckoutPage";
 import { AdminDashboard } from "./components/AdminDashboard";
 import { Toaster } from "./components/ui/sonner";
+import { useAuth } from "./context/AuthContext"; // 1. Import hook
 
-type Page =
-  | "landing"
-  | "login"
-  | "signup"
-  | "dashboard"
-  | "shop"
-  | "auctions"
+type Page = 
+  | "landing" 
+  | "login" 
+  | "signup" 
+  | "dashboard" 
+  | "shop" 
+  | "auctions" 
   | "categories"
   | "about"
   | "contact"
@@ -26,24 +27,30 @@ type Page =
   | "product"
   | "cart"
   | "checkout"
-  | "admin";
+  | "admin"
+  | "profile"         // 3. Thêm
+  | "post-product";   // 4. Thêm
 
 export default function App() {
   const [currentPage, setCurrentPage] = useState<Page>("landing");
-  const [isLoggedIn, setIsLoggedIn] = useState(false);
+  
   const [cartItemsCount, setCartItemsCount] = useState(0);
+  const [currentId, setCurrentId] = useState<number | null>(null); // 5. State để lưu ID
+
+  const { isLoggedIn } = useAuth(); // 6. Lấy trạng thái đăng nhập từ Context
 
   const handleNavigate = (page: string, id?: number) => {
     setCurrentPage(page as Page);
+    if (id) {
+      setCurrentId(id); // 7. Lưu ID khi chuyển trang
+    }
     window.scrollTo({ top: 0, behavior: "smooth" });
   };
 
-  const handleLogin = () => {
-    setIsLoggedIn(true);
-  };
+  // 8. XÓA handleLogin, Context sẽ lo
 
   const handleAddToCart = () => {
-    setCartItemsCount((prev) => prev + 1);
+    setCartItemsCount(prev => prev + 1);
   };
 
   const renderPage = () => {
@@ -51,9 +58,9 @@ export default function App() {
       case "landing":
         return <LandingPage onNavigate={handleNavigate} />;
       case "login":
-        return <LoginPage onNavigate={handleNavigate} onLogin={handleLogin} />;
+        return <LoginPage onNavigate={handleNavigate} />; // 9. Xóa prop onLogin
       case "signup":
-        return <SignupPage onNavigate={handleNavigate} onLogin={handleLogin} />;
+        return <SignupPage onNavigate={handleNavigate} />; // 10. Xóa prop onLogin
       case "dashboard":
         return <Dashboard onNavigate={handleNavigate} />;
       case "shop":
@@ -63,20 +70,18 @@ export default function App() {
       case "contact":
         return <LandingPage onNavigate={handleNavigate} />;
       case "auction":
-        return <AuctionPage onNavigate={handleNavigate} />;
+        // 11. Truyền ID vào
+        return <AuctionPage onNavigate={handleNavigate} auctionId={currentId} />;
       case "product":
-        return (
-          <ProductPage
-            onNavigate={handleNavigate}
-            onAddToCart={handleAddToCart}
-          />
-        );
+        // 12. Truyền ID vào
+        return <ProductPage onNavigate={handleNavigate} onAddToCart={handleAddToCart} productId={currentId} />;
       case "cart":
         return <CartPage onNavigate={handleNavigate} />;
       case "checkout":
         return <CheckoutPage onNavigate={handleNavigate} />;
       case "admin":
         return <AdminDashboard onNavigate={handleNavigate} />;
+  
       default:
         return <LandingPage onNavigate={handleNavigate} />;
     }
@@ -90,16 +95,18 @@ export default function App() {
         <Header
           currentPage={currentPage}
           onNavigate={handleNavigate}
-          isLoggedIn={isLoggedIn}
+          // 14. XÓA prop isLoggedIn
           cartItemsCount={cartItemsCount}
         />
       )}
-
-      <main>{renderPage()}</main>
-
+      
+      <main>
+        {renderPage()}
+      </main>
+      
       {showHeaderFooter && <Footer />}
-
-      <Toaster />
+      
+      <Toaster /> {/* Toaster để hiển thị thông báo lỗi/thành công */}
     </div>
   );
 }
