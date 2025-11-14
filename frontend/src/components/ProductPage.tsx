@@ -4,50 +4,97 @@ import { Badge } from "./ui/badge";
 import { ImageWithFallback } from "./figma/ImageWithFallback";
 import { Carousel, CarouselContent, CarouselItem, CarouselNext, CarouselPrevious } from "./ui/carousel";
 import { ProductCard } from "./ProductCard";
+import { useState, useEffect } from "react";
+import axios from "axios";
+import { Product } from "../types";
+import { toast } from "sonner"; // 1. Thêm import Toast
+import { Skeleton } from "./ui/skeleton"; // 2. Thêm import Skeleton
 
 interface ProductPageProps {
   onNavigate: (page: string, id?: number) => void;
   onAddToCart: () => void;
+  productId: number | null;
 }
 
-export function ProductPage({ onNavigate, onAddToCart }: ProductPageProps) {
-  const images = [
-    "https://images.unsplash.com/photo-1505740420928-5e560c06d30e?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHx3aXJlbGVzcyUyMGhlYWRwaG9uZXN8ZW58MXx8fHwxNzYwMzIxNDY4fDA&ixlib=rb-4.1.0&q=80&w=1080",
-    "https://images.unsplash.com/photo-1505740420928-5e560c06d30e?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHx3aXJlbGVzcyUyMGhlYWRwaG9uZXN8ZW58MXx8fHwxNzYwMzIxNDY4fDA&ixlib=rb-4.1.0&q=80&w=1080",
-    "https://images.unsplash.com/photo-1505740420928-5e560c06d30e?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHx3aXJlbGVzcyUyMGhlYWRwaG9uZXN8ZW58MXx8fHwxNzYwMzIxNDY4fDA&ixlib=rb-4.1.0&q=80&w=1080"
-  ];
+// 3. Tạo một Skeleton component chi tiết cho trang này
+const ProductPageSkeleton = () => (
+  <div className="max-w-7xl mx-auto py-8 px-4 sm:px-6 lg:px-8">
+    <Skeleton className="h-6 w-1/3 mb-6" /> {/* Breadcrumb */}
+    <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-12">
+      {/* Cột trái (Ảnh) */}
+      <div className="bg-white rounded-2xl shadow-sm overflow-hidden p-4">
+        <Skeleton className="aspect-square w-full rounded-lg" />
+      </div>
+      {/* Cột phải (Thông tin) */}
+      <div className="space-y-6">
+        <Skeleton className="h-5 w-24" /> {/* Badge */}
+        <Skeleton className="h-10 w-full" /> {/* Tên sản phẩm */}
+        <Skeleton className="h-12 w-32" /> {/* Giá */}
+        {/* Mô tả */}
+        <Skeleton className="h-6 w-full" />
+        <Skeleton className="h-6 w-full" />
+        <Skeleton className="h-6 w-3/4" />
+        {/* Nút bấm */}
+        <Skeleton className="h-12 w-full mt-4" /> 
+        <div className="grid grid-cols-2 gap-3">
+          <Skeleton className="h-12 w-full" />
+          <Skeleton className="h-12 w-full" />
+        </div>
+      </div>
+    </div>
+    {/* Related Products Skeleton */}
+    <Skeleton className="h-8 w-48 mb-6" />
+    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+      {[1, 2, 3, 4].map((i) => (
+        <div key={i} className="space-y-3 bg-white rounded-xl p-4 shadow-sm">
+          <Skeleton className="h-48 w-full rounded-lg" />
+          <Skeleton className="h-4 w-3/4" />
+          <Skeleton className="h-4 w-1/2" />
+          <Skeleton className="h-9 w-full rounded-md mt-2" />
+        </div>
+      ))}
+    </div>
+  </div>
+);
 
-  const relatedProducts = [
-    {
-      id: 2,
-      name: "Modern Designer Sofa",
-      price: 1499,
-      image: "https://images.unsplash.com/photo-1759722668253-1767030ad9b2?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHxtb2Rlcm4lMjBmdXJuaXR1cmUlMjBzb2ZhfGVufDF8fHx8MTc2MDM1NjU1NXww&ixlib=rb-4.1.0&q=80&w=1080",
-      category: "Furniture"
-    },
-    {
-      id: 3,
-      name: "Professional Camera Kit",
-      price: 899,
-      image: "https://images.unsplash.com/photo-1729857001644-ade54ca81f53?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHxjYW1lcmElMjBwaG90b2dyYXBoeSUyMGVxdWlwbWVudHxlbnwxfHx8fDE3NjAzNDMwNDN8MA&ixlib=rb-4.1.0&q=80&w=1080",
-      category: "Photography"
-    },
-    {
-      id: 4,
-      name: "Smartphone Pro Max",
-      price: 1199,
-      image: "https://images.unsplash.com/photo-1676173646307-d050e097d181?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHxzbWFydHBob25lJTIwdGVjaG5vbG9neXxlbnwxfHx8fDE3NjAzNzM5MjN8MA&ixlib=rb-4.1.0&q=80&w=1080",
-      category: "Electronics"
-    },
-    {
-      id: 5,
-      name: "Gaming Console",
-      price: 499,
-      image: "https://images.unsplash.com/photo-1580234797602-22c37b2a6230?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHxnYW1pbmclMjBjb25zb2xlfGVufDF8fHx8MTc2MDI3NDg0OHww&ixlib=rb-4.1.0&q=80&w=1080",
-      category: "Gaming"
+
+export function ProductPage({ onNavigate, onAddToCart, productId }: ProductPageProps) {
+  const [product, setProduct] = useState<Product | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  // Gọi API khi productId thay đổi
+  useEffect(() => {
+    if (!productId) {
+      onNavigate("landing");
+      return;
     }
-  ];
 
+    const fetchData = async () => {
+      try {
+        setLoading(true);
+        const response = await axios.get(`/api/products/${productId}`);
+        setProduct(response.data);
+      } catch (error) {
+        console.error("Lỗi tải chi tiết sản phẩm:", error);
+        toast.error("Không tìm thấy sản phẩm."); // 4. Thêm thông báo lỗi
+        onNavigate("landing");
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetchData();
+  }, [productId, onNavigate]); // Chạy lại khi ID thay đổi
+
+  // 5. Hiển thị Skeleton loading
+  if (loading || !product) {
+    return (
+      <div className="min-h-screen bg-[#F5F5F7]">
+        <ProductPageSkeleton />
+      </div>
+    );
+  }
+
+  // 6. Dùng dữ liệu thật sau khi tải xong
   return (
     <div className="min-h-screen bg-[#F5F5F7] py-8 px-4 sm:px-6 lg:px-8">
       <div className="max-w-7xl mx-auto">
@@ -57,11 +104,7 @@ export function ProductPage({ onNavigate, onAddToCart }: ProductPageProps) {
             Home
           </button>
           <span>/</span>
-          <button onClick={() => onNavigate("shop")} className="hover:text-[#0A84FF]">
-            Shop
-          </button>
-          <span>/</span>
-          <span className="text-gray-900">Premium Wireless Headphones</span>
+          <span className="text-gray-900">{product.name}</span>
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-12">
@@ -69,12 +112,13 @@ export function ProductPage({ onNavigate, onAddToCart }: ProductPageProps) {
           <div className="bg-white rounded-2xl shadow-sm overflow-hidden">
             <Carousel className="w-full">
               <CarouselContent>
-                {images.map((image, index) => (
+                {/* Dùng mảng 'images' (đúng) */}
+                {product.images?.map((image, index) => (
                   <CarouselItem key={index}>
                     <div className="aspect-square bg-gray-100">
                       <ImageWithFallback
                         src={image}
-                        alt={`Product view ${index + 1}`}
+                        alt={`${product.name} view ${index + 1}`}
                         className="w-full h-full object-cover"
                       />
                     </div>
@@ -89,9 +133,9 @@ export function ProductPage({ onNavigate, onAddToCart }: ProductPageProps) {
           {/* Right Column - Product Info */}
           <div className="space-y-6">
             <div>
-              <Badge className="mb-3">Electronics</Badge>
+              <Badge className="mb-3">{product.category}</Badge>
               <h1 className="text-3xl md:text-4xl text-gray-900 mb-4">
-                Premium Wireless Headphones
+                {product.name}
               </h1>
               
               <div className="flex items-center gap-2 mb-4">
@@ -104,46 +148,21 @@ export function ProductPage({ onNavigate, onAddToCart }: ProductPageProps) {
               </div>
 
               <div className="flex items-baseline gap-3 mb-6">
-                <span className="text-4xl text-gray-900">$299</span>
-                <span className="text-xl text-gray-400 line-through">$399</span>
-                <Badge className="bg-green-500 hover:bg-green-600">25% OFF</Badge>
+                <span className="text-4xl text-gray-900">${product.price}</span>
               </div>
-
-              <p className="text-gray-600 mb-6">
-                Experience premium sound quality with our wireless headphones featuring active
-                noise cancellation, 30-hour battery life, and premium comfort. Perfect for music
-                lovers and professionals alike.
-              </p>
+              
+              {/* 7. Hiển thị mô tả từ history (thay cho P tĩnh) */}
+              <div className="space-y-4">
+                <h3 className="text-lg font-medium text-gray-900">Description</h3>
+                {product.description_history?.map((desc, index) => (
+                  <p key={index} className="text-gray-600">
+                    {desc.description_text}
+                  </p>
+                ))}
+              </div>
             </div>
 
-            {/* Features */}
-            <div className="bg-gray-50 rounded-xl p-4 space-y-3">
-              <h3 className="text-gray-900">Key Features</h3>
-              <ul className="space-y-2 text-sm text-gray-600">
-                <li className="flex items-start gap-2">
-                  <span className="text-[#0A84FF] mt-1">•</span>
-                  <span>Active Noise Cancellation (ANC)</span>
-                </li>
-                <li className="flex items-start gap-2">
-                  <span className="text-[#0A84FF] mt-1">•</span>
-                  <span>30-hour battery life with fast charging</span>
-                </li>
-                <li className="flex items-start gap-2">
-                  <span className="text-[#0A84FF] mt-1">•</span>
-                  <span>Premium leather ear cushions</span>
-                </li>
-                <li className="flex items-start gap-2">
-                  <span className="text-[#0A84FF] mt-1">•</span>
-                  <span>Bluetooth 5.3 with multipoint connection</span>
-                </li>
-                <li className="flex items-start gap-2">
-                  <span className="text-[#0A84FF] mt-1">•</span>
-                  <span>Built-in microphone for calls</span>
-                </li>
-              </ul>
-            </div>
-
-            {/* Actions */}
+            {/* 8. Actions (Thêm code vào khối bị thiếu) */}
             <div className="space-y-3">
               <Button 
                 className="w-full bg-[#0A84FF] hover:bg-[#0A84FF]/90 h-12"
@@ -166,7 +185,7 @@ export function ProductPage({ onNavigate, onAddToCart }: ProductPageProps) {
               </div>
             </div>
 
-            {/* Additional Info */}
+            {/* Additional Info (Giữ nguyên) */}
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 pt-6 border-t">
               <div className="flex items-start gap-3">
                 <div className="bg-blue-50 rounded-lg p-2">
@@ -203,10 +222,16 @@ export function ProductPage({ onNavigate, onAddToCart }: ProductPageProps) {
         <section>
           <h2 className="text-2xl text-gray-900 mb-6">Related Products</h2>
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
-            {relatedProducts.map((product) => (
+            {/* 9. SỬA LỖI LOGIC: Truyền prop thủ công (không dùng spread) */}
+            {product.related_products?.map((related) => (
               <ProductCard
-                key={product.id}
-                {...product}
+                key={related.id}
+                id={related.id}
+                name={related.name}
+                price={related.price}
+                category={related.category || "General"}
+                // Sửa lỗi: Lấy ảnh đầu tiên từ mảng 'images'
+                image={related.images && related.images.length > 0 ? related.images[0] : ""} 
                 onViewDetails={(id) => onNavigate("product", id)}
               />
             ))}

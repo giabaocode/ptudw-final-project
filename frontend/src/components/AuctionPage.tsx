@@ -1,36 +1,122 @@
 import { Clock, TrendingUp, User as UserIcon, Shield, Info } from "lucide-react";
 import { Button } from "./ui/button";
-import { Input } from "./ui/input";
-import { Badge } from "./ui/badge";
-import { ImageWithFallback } from "./figma/ImageWithFallback";
+import { Input } from "./ui/input"; // 1. Thêm Import
+import { Badge } from "./ui/badge"; // 2. Thêm Import
+import { ImageWithFallback } from "./figma/ImageWithFallback"; // 3. Thêm Import
+import { Carousel, CarouselContent, CarouselItem, CarouselNext, CarouselPrevious } from "./ui/carousel"; // 4. Thêm Import
 import { useState, useEffect } from "react";
-import { Carousel, CarouselContent, CarouselItem, CarouselNext, CarouselPrevious } from "./ui/carousel";
+import axios from "axios";
+import { Auction } from "../types";
+import { toast } from "sonner";
+import { useAuth } from "../context/AuthContext";
+import { Skeleton } from "./ui/skeleton"; // 5. Thêm Import
+import { Label } from "./ui/label";
 
 interface AuctionPageProps {
-  onNavigate: (page: string) => void;
+  onNavigate: (page: string, id?: number) => void;
+  auctionId: number | null;
 }
 
-export function AuctionPage({ onNavigate }: AuctionPageProps) {
-  const [bidAmount, setBidAmount] = useState("2550");
+interface BidHistory {
+  bidder_name: string;
+  amount: number;
+  created_at: string;
+}
+
+// 6. Tạo Skeleton component chi tiết
+const AuctionPageSkeleton = () => (
+  <div className="max-w-7xl mx-auto py-8 px-4 sm:px-6 lg:px-8">
+    <Skeleton className="h-6 w-1/3 mb-6" /> {/* Breadcrumb */}
+    <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+      {/* Cột trái */}
+      <div className="lg:col-span-2 space-y-6">
+        <Skeleton className="aspect-square w-full rounded-2xl" /> {/* Carousel */}
+        {/* Details Card */}
+        <div className="bg-white rounded-2xl shadow-sm p-6 space-y-4">
+          <Skeleton className="h-10 w-3/4" />
+          <div className="flex gap-3">
+            <Skeleton className="h-6 w-24" />
+            <Skeleton className="h-6 w-24" />
+          </div>
+          <Skeleton className="h-6 w-1/3" />
+          <Skeleton className="h-5 w-full" />
+          <Skeleton className="h-5 w-full" />
+        </div>
+      </div>
+      {/* Cột phải */}
+      <div className="space-y-6">
+        {/* Bidding Card */}
+        <div className="bg-white rounded-2xl shadow-sm p-6 space-y-4">
+          <Skeleton className="h-6 w-1/3" />
+          <Skeleton className="h-12 w-1/2" />
+          <Skeleton className="h-10 w-full" />
+          <Skeleton className="h-10 w-full" />
+        </div>
+        {/* Seller Card */}
+        <div className="bg-white rounded-2xl shadow-sm p-6 space-y-4">
+          <Skeleton className="h-8 w-1/2" />
+          <div className="flex gap-3 items-center">
+            <Skeleton className="h-12 w-12 rounded-full" />
+            <div className="space-y-2 w-full">
+              <Skeleton className="h-5 w-3/4" />
+              <Skeleton className="h-4 w-1/2" />
+            </div>
+          </div>
+          <Skeleton className="h-10 w-full" />
+        </div>
+      </div>
+    </div>
+  </div>
+);
+
+
+export function AuctionPage({ onNavigate, auctionId }: AuctionPageProps) {
+  const [auction, setAuction] = useState<Auction | null>(null);
+  const [bidHistory, setBidHistory] = useState<BidHistory[]>([]);
+  const [loading, setLoading] = useState(true);
+  
+  const [bidAmount, setBidAmount] = useState("");
   const [timeLeft, setTimeLeft] = useState("");
   
-  const endTime = new Date(Date.now() + 2 * 60 * 60 * 1000); // 2 hours from now
+  const { isLoggedIn, token } = useAuth();
 
-  const images = [
-    "https://images.unsplash.com/photo-1742631193849-acc045ea5890?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHxsdXh1cnklMjB3YXRjaCUyMGVsZWdhbnR8ZW58MXx8fHwxNzYwMjUzOTM0fDA&ixlib=rb-4.1.0&q=80&w=1080",
-    "https://images.unsplash.com/photo-1742631193849-acc045ea5890?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHxsdXh1cnklMjB3YXRjaCUyMGVsZWdhbnR8ZW58MXx8fHwxNzYwMjUzOTM0fDA&ixlib=rb-4.1.0&q=80&w=1080",
-    "https://images.unsplash.com/photo-1742631193849-acc045ea5890?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHxsdXh1cnklMjB3YXRjaCUyMGVsZWdhbnR8ZW58MXx8fHwxNzYwMjUzOTM0fDA&ixlib=rb-4.1.0&q=80&w=1080"
-  ];
-
-  const bidHistory = [
-    { user: "john_doe", amount: 2500, time: "2 minutes ago" },
-    { user: "jane_smith", amount: 2450, time: "15 minutes ago" },
-    { user: "mike_wilson", amount: 2400, time: "32 minutes ago" },
-    { user: "sarah_jones", amount: 2350, time: "1 hour ago" },
-    { user: "david_brown", amount: 2300, time: "2 hours ago" }
-  ];
-
+  // Gọi API khi auctionId thay đổi
   useEffect(() => {
+    if (!auctionId) {
+      onNavigate("landing");
+      return;
+    }
+
+    const fetchData = async () => {
+      try {
+        setLoading(true);
+        const [auctionRes, historyRes] = await Promise.all([
+          axios.get(`/api/products/${auctionId}`),
+          axios.get(`/api/products/${auctionId}/bid-history`)
+        ]);
+        
+        setAuction(auctionRes.data);
+        setBidHistory(historyRes.data);
+        
+        const suggestedBid = (auctionRes.data.current_price || auctionRes.data.start_price) + (auctionRes.data.step_price || 50);
+        setBidAmount(suggestedBid.toString());
+
+      } catch (error) {
+        console.error("Lỗi tải chi tiết đấu giá:", error);
+        toast.error("Không tìm thấy phiên đấu giá.");
+        onNavigate("landing");
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetchData();
+  }, [auctionId, onNavigate]);
+
+  // 7. Logic đếm ngược (Hoàn thiện)
+  useEffect(() => {
+    if (!auction?.end_time) return;
+
+    const endTime = new Date(auction.end_time);
     const timer = setInterval(() => {
       const now = new Date().getTime();
       const distance = endTime.getTime() - now;
@@ -39,16 +125,57 @@ export function AuctionPage({ onNavigate }: AuctionPageProps) {
         setTimeLeft("Ended");
         clearInterval(timer);
       } else {
+        const days = Math.floor(distance / (1000 * 60 * 60 * 24));
         const hours = Math.floor((distance % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
         const minutes = Math.floor((distance % (1000 * 60 * 60)) / (1000 * 60));
         const seconds = Math.floor((distance % (1000 * 60)) / 1000);
-        setTimeLeft(`${hours}h ${minutes}m ${seconds}s`);
+
+        if (days > 0) {
+          setTimeLeft(`${days}d ${hours}h ${minutes}m`);
+        } else {
+          setTimeLeft(`${hours}h ${minutes}m ${seconds}s`);
+        }
       }
     }, 1000);
 
     return () => clearInterval(timer);
-  }, []);
+  }, [auction?.end_time]);
 
+  // 5. Hàm xử lý Đặt giá (Giữ nguyên - đã đúng)
+  const handlePlaceBid = async () => {
+    if (!isLoggedIn) {
+      toast.error("Vui lòng đăng nhập để ra giá.");
+      onNavigate("login");
+      return;
+    }
+    
+    try {
+      await axios.post(
+        `/api/products/${auctionId}/bid`, 
+        { amount: parseFloat(bidAmount) },
+        { headers: { 'Authorization': `Bearer ${token}` } }
+      );
+      
+      toast.success("Ra giá thành công!");
+      // Tải lại dữ liệu (Cách đơn giản)
+      window.location.reload(); 
+
+    } catch (error: any) {
+      console.error("Lỗi ra giá:", error);
+      toast.error(error.response?.data?.message || "Ra giá thất bại.");
+    }
+  };
+
+  // 6. Hiển thị Skeleton Loading (chi tiết hơn)
+  if (loading || !auction) {
+    return (
+      <div className="min-h-screen bg-[#F5F5F7]">
+        <AuctionPageSkeleton />
+      </div>
+    );
+  }
+
+  // 7. Dùng dữ liệu thật (Hoàn thiện JSX)
   return (
     <div className="min-h-screen bg-[#F5F5F7] py-8 px-4 sm:px-6 lg:px-8">
       <div className="max-w-7xl mx-auto">
@@ -62,7 +189,7 @@ export function AuctionPage({ onNavigate }: AuctionPageProps) {
             Auctions
           </button>
           <span>/</span>
-          <span className="text-gray-900">Luxury Swiss Watch</span>
+          <span className="text-gray-900">{auction.name}</span>
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
@@ -72,12 +199,12 @@ export function AuctionPage({ onNavigate }: AuctionPageProps) {
             <div className="bg-white rounded-2xl shadow-sm overflow-hidden">
               <Carousel className="w-full">
                 <CarouselContent>
-                  {images.map((image, index) => (
+                  {auction.images?.map((image, index) => (
                     <CarouselItem key={index}>
                       <div className="aspect-square bg-gray-100">
                         <ImageWithFallback
                           src={image}
-                          alt={`Product view ${index + 1}`}
+                          alt={`${auction.name} view ${index + 1}`}
                           className="w-full h-full object-cover"
                         />
                       </div>
@@ -92,50 +219,28 @@ export function AuctionPage({ onNavigate }: AuctionPageProps) {
             {/* Product Details */}
             <div className="bg-white rounded-2xl shadow-sm p-6">
               <h1 className="text-3xl text-gray-900 mb-4">
-                Luxury Swiss Watch - Limited Edition
+                {auction.name}
               </h1>
               
               <div className="flex items-center gap-3 mb-6">
-                <Badge className="bg-[#FFD700] text-gray-900 hover:bg-[#FFD700]/90">
+                <Badge className={`hover:bg-[#FFD700]/90 ${timeLeft === 'Ended' ? 'bg-gray-500' : 'bg-[#FFD700] text-gray-900'}`}>
                   <Clock className="h-3 w-3 mr-1" />
-                  Ends in {timeLeft}
+                  {timeLeft}
                 </Badge>
                 <Badge variant="outline">
                   <TrendingUp className="h-3 w-3 mr-1" />
-                  23 bids
+                  {auction.bidCount || 0} bids
                 </Badge>
               </div>
 
               <div className="space-y-4 mb-6">
                 <div>
                   <h3 className="text-gray-900 mb-2">Description</h3>
-                  <p className="text-gray-600">
-                    Exquisite Swiss-made timepiece featuring automatic movement, sapphire crystal,
-                    and premium leather strap. This limited edition watch combines precision
-                    engineering with timeless elegance. Only 500 pieces produced worldwide.
-                  </p>
-                </div>
-
-                <div>
-                  <h3 className="text-gray-900 mb-2">Specifications</h3>
-                  <ul className="space-y-2 text-sm text-gray-600">
-                    <li className="flex items-start gap-2">
-                      <Info className="h-4 w-4 mt-0.5 text-[#0A84FF]" />
-                      <span>Movement: Swiss Automatic</span>
-                    </li>
-                    <li className="flex items-start gap-2">
-                      <Info className="h-4 w-4 mt-0.5 text-[#0A84FF]" />
-                      <span>Case: 42mm Stainless Steel</span>
-                    </li>
-                    <li className="flex items-start gap-2">
-                      <Info className="h-4 w-4 mt-0.5 text-[#0A84FF]" />
-                      <span>Water Resistance: 100m</span>
-                    </li>
-                    <li className="flex items-start gap-2">
-                      <Info className="h-4 w-4 mt-0.5 text-[#0A84FF]" />
-                      <span>Warranty: 2 Years International</span>
-                    </li>
-                  </ul>
+                  {auction.description_history?.map((desc, index) => (
+                     <p key={index} className="text-gray-600">
+                       {desc.description_text}
+                     </p>
+                  ))}
                 </div>
               </div>
 
@@ -165,13 +270,16 @@ export function AuctionPage({ onNavigate }: AuctionPageProps) {
                         <UserIcon className="h-4 w-4 text-gray-600" />
                       </div>
                       <div>
-                        <p className="text-gray-900">{bid.user}</p>
-                        <p className="text-xs text-gray-500">{bid.time}</p>
+                        <p className="text-gray-900">{bid.bidder_name}</p>
+                        <p className="text-xs text-gray-500">{new Date(bid.created_at).toLocaleString()}</p>
                       </div>
                     </div>
-                    <p className="text-[#0A84FF]">${bid.amount}</p>
+                    <p className="text-[#0A84FF]">${bid.amount.toLocaleString()}</p>
                   </div>
                 ))}
+                {bidHistory.length === 0 && (
+                  <p className="text-gray-500 text-sm">Be the first to bid!</p>
+                )}
               </div>
             </div>
           </div>
@@ -182,47 +290,34 @@ export function AuctionPage({ onNavigate }: AuctionPageProps) {
             <div className="bg-white rounded-2xl shadow-sm p-6 sticky top-24">
               <div className="mb-6">
                 <p className="text-sm text-gray-600 mb-1">Current Bid</p>
-                <p className="text-4xl text-[#0A84FF] mb-4">$2,500</p>
+                <p className="text-4xl text-[#0A84FF] mb-4">${auction.current_price.toLocaleString()}</p>
                 <p className="text-sm text-gray-600">
-                  Minimum bid increment: <span className="text-gray-900">$50</span>
+                  Minimum bid increment: <span className="text-gray-900">${(auction as any).step_price?.toLocaleString()}</span>
                 </p>
               </div>
 
               <div className="space-y-4 mb-6">
                 <div>
-                  <label className="text-sm text-gray-700 mb-2 block">Your Bid</label>
+                  <Label className="text-sm text-gray-700 mb-2 block">Your Bid (Min: ${parseFloat(bidAmount).toLocaleString()})</Label>
                   <Input
                     type="number"
                     value={bidAmount}
                     onChange={(e) => setBidAmount(e.target.value)}
                     className="text-lg"
                     placeholder="Enter bid amount"
+                    disabled={timeLeft === 'Ended'}
                   />
                 </div>
 
-                <Button className="w-full bg-[#0A84FF] hover:bg-[#0A84FF]/90 h-12">
+                <Button onClick={handlePlaceBid} className="w-full bg-[#0A84FF] hover:bg-[#0A84FF]/90 h-12" disabled={timeLeft === 'Ended'}>
                   Place Bid
                 </Button>
 
-                <Button variant="outline" className="w-full h-12">
+                <Button variant="outline" className="w-full h-12" disabled={timeLeft === 'Ended'}>
                   Add to Watchlist
                 </Button>
               </div>
-
-              <div className="bg-gray-50 rounded-xl p-4 space-y-2 text-sm">
-                <div className="flex justify-between">
-                  <span className="text-gray-600">Bid Amount</span>
-                  <span className="text-gray-900">${bidAmount}</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-gray-600">Buyer's Premium (10%)</span>
-                  <span className="text-gray-900">${(parseFloat(bidAmount) * 0.1).toFixed(0)}</span>
-                </div>
-                <div className="border-t pt-2 flex justify-between">
-                  <span className="text-gray-900">Total if you win</span>
-                  <span className="text-gray-900">${(parseFloat(bidAmount) * 1.1).toFixed(0)}</span>
-                </div>
-              </div>
+            
             </div>
 
             {/* Seller Info */}
@@ -233,27 +328,16 @@ export function AuctionPage({ onNavigate }: AuctionPageProps) {
                   <UserIcon className="h-6 w-6 text-white" />
                 </div>
                 <div>
-                  <p className="text-gray-900">Premium Watches Co.</p>
+                  <p className="text-gray-900">{auction.seller?.fullName}</p>
                   <div className="flex items-center gap-1">
                     <span className="text-yellow-500">★★★★★</span>
-                    <span className="text-xs text-gray-600">(4.9)</span>
+                    <span className="text-xs text-gray-600">
+                      ({auction.seller?.rating_plus || 0}+ / {auction.seller?.rating_minus || 0}-)
+                    </span>
                   </div>
                 </div>
               </div>
-              <div className="space-y-2 text-sm text-gray-600">
-                <div className="flex justify-between">
-                  <span>Total Sales</span>
-                  <span className="text-gray-900">1,234</span>
-                </div>
-                <div className="flex justify-between">
-                  <span>Member Since</span>
-                  <span className="text-gray-900">2020</span>
-                </div>
-                <div className="flex justify-between">
-                  <span>Location</span>
-                  <span className="text-gray-900">Switzerland</span>
-                </div>
-              </div>
+
               <Button variant="outline" className="w-full mt-4">
                 View Seller Profile
               </Button>

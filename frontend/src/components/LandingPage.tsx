@@ -3,78 +3,70 @@ import { Button } from "./ui/button";
 import { Input } from "./ui/input";
 import { ProductCard } from "./ProductCard";
 import { AuctionCard } from "./AuctionCard";
+import {useState, useEffect} from "react";
+import axios from "axios";
+import { Product, Auction } from "../types";
+import { Skeleton } from "./ui/skeleton";
+
 
 interface LandingPageProps {
   onNavigate: (page: string, id?: number) => void;
 }
 
+const SkeletonCard = () => (
+  <div className="space-y-3 bg-white rounded-xl p-4 shadow-sm">
+    <Skeleton className="h-48 w-full rounded-lg" /> {/* Mô phỏng hình ảnh */}
+    <Skeleton className="h-4 w-3/4" />             {/* Mô phỏng tên sản phẩm */}
+    <Skeleton className="h-4 w-1/2" />             {/* Mô phỏng giá */}
+    <Skeleton className="h-9 w-full rounded-md mt-2" /> {/* Mô phỏng nút bấm */}
+  </div>
+);
 export function LandingPage({ onNavigate }: LandingPageProps) {
-  const featuredProducts = [
-    {
-      id: 1,
-      name: "Premium Wireless Headphones",
-      price: 299,
-      image: "https://images.unsplash.com/photo-1505740420928-5e560c06d30e?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHx3aXJlbGVzcyUyMGhlYWRwaG9uZXN8ZW58MXx8fHwxNzYwMzIxNDY4fDA&ixlib=rb-4.1.0&q=80&w=1080",
-      category: "Electronics"
-    },
-    {
-      id: 2,
-      name: "Modern Designer Sofa",
-      price: 1499,
-      image: "https://images.unsplash.com/photo-1759722668253-1767030ad9b2?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHxtb2Rlcm4lMjBmdXJuaXR1cmUlMjBzb2ZhfGVufDF8fHx8MTc2MDM1NjU1NXww&ixlib=rb-4.1.0&q=80&w=1080",
-      category: "Furniture"
-    },
-    {
-      id: 3,
-      name: "Professional Camera Kit",
-      price: 899,
-      image: "https://images.unsplash.com/photo-1729857001644-ade54ca81f53?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHxjYW1lcmElMjBwaG90b2dyYXBoeSUyMGVxdWlwbWVudHxlbnwxfHx8fDE3NjAzNDMwNDN8MA&ixlib=rb-4.1.0&q=80&w=1080",
-      category: "Photography"
-    },
-    {
-      id: 4,
-      name: "Smartphone Pro Max",
-      price: 1199,
-      image: "https://images.unsplash.com/photo-1676173646307-d050e097d181?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHxzbWFydHBob25lJTIwdGVjaG5vbG9neXxlbnwxfHx8fDE3NjAzNzM5MjN8MA&ixlib=rb-4.1.0&q=80&w=1080",
-      category: "Electronics"
+  const [auctions, setAuctions] = useState<Auction[]>([]);
+  const [products, setProducts] = useState<Product[]>([]);
+  const [loading, setLoading] = useState(true);
+  
+  useEffect(() => {
+    const fetchData = async () => {
+      try {
+        setLoading(true);
+        const response = await axios.get('/api/products/homepage-tops');
+        setAuctions(response.data.top_ending_soon);
+        setProducts(response.data.top_highest_price);
+      } catch (error) {
+        console.error('Failed to fetch homepage data:', error);
+      } finally {
+        setLoading(false);
+      }
     }
-  ];
+    fetchData();
+  }, []);
 
-  const liveAuctions = [
-    {
-      id: 101,
-      name: "Luxury Swiss Watch - Limited Edition",
-      currentBid: 2500,
-      image: "https://images.unsplash.com/photo-1742631193849-acc045ea5890?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHxsdXh1cnklMjB3YXRjaCUyMGVsZWdhbnR8ZW58MXx8fHwxNzYwMjUzOTM0fDA&ixlib=rb-4.1.0&q=80&w=1080",
-      endTime: new Date(Date.now() + 2 * 60 * 60 * 1000), // 2 hours from now
-      bidCount: 23
-    },
-    {
-      id: 102,
-      name: "MacBook Pro 16-inch M3",
-      currentBid: 1800,
-      image: "https://images.unsplash.com/photo-1754928864131-21917af96dfd?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHxtb2Rlcm4lMjBsYXB0b3AlMjBjb21wdXRlcnxlbnwxfHx8fDE3NjAzNzU4MjZ8MA&ixlib=rb-4.1.0&q=80&w=1080",
-      endTime: new Date(Date.now() + 5 * 60 * 60 * 1000), // 5 hours from now
-      bidCount: 45
-    },
-    {
-      id: 103,
-      name: "Designer Leather Handbag",
-      currentBid: 650,
-      image: "https://images.unsplash.com/photo-1758171692659-024183c2c272?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHxkZXNpZ25lciUyMGhhbmRiYWclMjBsdXh1cnl8ZW58MXx8fHwxNzYwMjU5MzE3fDA&ixlib=rb-4.1.0&q=80&w=1080",
-      endTime: new Date(Date.now() + 1 * 24 * 60 * 60 * 1000), // 1 day from now
-      bidCount: 12
-    },
-    {
-      id: 104,
-      name: "Gaming Console Bundle",
-      currentBid: 450,
-      image: "https://images.unsplash.com/photo-1580234797602-22c37b2a6230?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHxnYW1pbmclMjBjb25zb2xlfGVufDF8fHx8MTc2MDI3NDg0OHww&ixlib=rb-4.1.0&q=80&w=1080",
-      endTime: new Date(Date.now() + 3 * 60 * 60 * 1000), // 3 hours from now
-      bidCount: 34
-    }
-  ];
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-[#F5F5F7] py-12 px-4 sm:px-6 lg:px-8">
+        <div className="max-w-7xl mx-auto">
+          
+          {/* 1. MÔ PHỎNG HEADER CHO AUCTIONS */}
+          <Skeleton className="h-8 w-72 mb-8" />
+          
+          {/* 2. MÔ PHỎNG LƯỚI 4 CỘT CHO AUCTIONS */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 mb-12">
+            {[1, 2, 3, 4].map((i) => <SkeletonCard key={i} />)}
+          </div>
 
+          {/* 3. MÔ PHỎNG HEADER CHO PRODUCTS */}
+          <Skeleton className="h-8 w-72 mb-8" />
+
+          {/* 4. MÔ PHỎNG LƯỚI 4 CỘT CHO PRODUCTS */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+            {[1, 2, 3, 4].map((i) => <SkeletonCard key={i} />)}
+          </div>
+
+        </div>
+      </div>
+    );
+  }
   return (
     <div className="min-h-screen bg-[#F5F5F7]">
       {/* Hero Section */}
@@ -173,12 +165,21 @@ export function LandingPage({ onNavigate }: LandingPageProps) {
             </Button>
           </div>
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
-            {liveAuctions.map((auction) => (
+            {auctions.map((auction) => (
               <AuctionCard
-                key={auction.id}
-                {...auction}
-                onViewDetails={(id) => onNavigate("auction", id)}
-              />
+              key={auction.id}
+              id={auction.id}
+              name={auction.name}
+              image={auction.images && auction.images.length > 0 ? auction.images[0] : ""}              
+              bidCount={auction.bidCount || 0} // Giả sử auction có bid_count
+              // 3. SỬA LỖI XUNG ĐỘT PROP:
+              //    Ánh xạ `current_price` (từ API) sang `currentBid` (mà Card cần)
+              currentBid={auction.current_price} 
+              // 4. SỬA LỖI TYPE:
+              //    `auction.endTime` giờ đã tồn tại vì `auctions` là `Auction[]`
+              endTime={new Date(auction.end_time)}
+              onViewDetails={(id) => onNavigate("auction", id)}
+            />
             ))}
           </div>
         </div>
@@ -200,12 +201,16 @@ export function LandingPage({ onNavigate }: LandingPageProps) {
             </Button>
           </div>
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
-            {featuredProducts.map((product) => (
+            {products.map((product) => (
               <ProductCard
                 key={product.id}
-                {...product}
+                id={product.id}
+                name={product.name}
+                price={product.price}
+                category={product.category || "General"}
+                image={product.images && product.images.length > 0 ? product.images[0] : ""} 
                 onViewDetails={(id) => onNavigate("product", id)}
-              />
+/>
             ))}
           </div>
         </div>
