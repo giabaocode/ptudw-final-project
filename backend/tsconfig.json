@@ -1,0 +1,14 @@
+{
+  "compilerOptions": {
+    "target": "es6",                          // Biên dịch sang ES6
+    "module": "commonjs",                     // Sử dụng module CommonJS (cho Node.js)
+    "rootDir": "./src",                       // Thư mục code nguồn
+    "outDir": "./dist",                       // Thư mục code đã biên dịch
+    "esModuleInterop": true,                  // Cho phép import các module CommonJS
+    "strict": true,                           // Bật chế độ nghiêm ngặt
+    "skipLibCheck": true,
+    "resolveJsonModule": true
+  },
+  "include": ["src/**/*"], // Chỉ biên dịch code trong /src
+  "exclude": ["node_modules"]
+}
