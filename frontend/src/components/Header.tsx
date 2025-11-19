@@ -1,25 +1,37 @@
-import { ShoppingCart, User, Menu, X, Search } from "lucide-react";
+import { ShoppingCart, User, Menu, X, Search , LogOut} from "lucide-react";
 import { Button } from "./ui/button";
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import { useAuth } from "../context/AuthContext";
+import axios from "axios";
+import { Category } from "../types";
 
 interface HeaderProps {
   currentPage: string;
-  onNavigate: (page: string) => void;
-  isLoggedIn: boolean;
+  onNavigate: (page: string, id?: number) => void;
+  //isLoggedIn: boolean;
   cartItemsCount: number;
 }
 
-export function Header({ currentPage, onNavigate, isLoggedIn, cartItemsCount }: HeaderProps) {
+export function Header({ currentPage, onNavigate,  cartItemsCount }: HeaderProps) {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const { isLoggedIn, logout }  = useAuth();
+  const [categories, setCategories] = useState<Category[]>([]);
 
-  const navItems = [
-    { label: "Home", value: "landing" },
-    { label: "Shop", value: "shop" },
-    { label: "Auctions", value: "auctions" },
-    { label: "Categories", value: "categories" },
-    { label: "About", value: "about" },
-    { label: "Contact", value: "contact" },
-  ];
+  useEffect(() => {
+    // Fetch categories from API
+    const fetchCategories = async () => {
+      try {
+        const response = await axios.get('/api/categories');
+        setCategories(response.data);
+      } catch (error) {
+        console.error('Failed to fetch categories:', error);
+      }
+    };
+    fetchCategories();
+  }, []);
+
+
+  
 
   return (
     <header className="bg-white shadow-sm sticky top-0 z-50">
@@ -38,17 +50,26 @@ export function Header({ currentPage, onNavigate, isLoggedIn, cartItemsCount }: 
 
           {/* Desktop Navigation */}
           <nav className="hidden md:flex items-center gap-6">
-            {navItems.map((item) => (
-              <button
-                key={item.value}
-                onClick={() => onNavigate(item.value)}
-                className={`text-gray-700 hover:text-[#0A84FF] transition-colors ${
-                  currentPage === item.value ? "text-[#0A84FF]" : ""
-                }`}
-              >
-                {item.label}
+            <button
+              onClick={() => onNavigate("landing")}
+              className={`text-gray-700 hover:text-[#0A84FF] transition-colors ${
+                currentPage === "landing" ? "text-[#0A84FF]" : ""
+              }`}>
+              Home
               </button>
-            ))}
+
+              {categories.map((cat) => (
+                <button
+                  key={cat.id}
+                  onClick={() => onNavigate("categories", cat.id)}
+                  className={`ml-4 text-gray-700 hover:text-[#0A84FF] transition-colors ${
+                    currentPage === cat.name ? "text-[#0A84FF]" : ""
+                  }`}
+                >
+                  {cat.name}
+                </button>
+              ))}
+           
           </nav>
 
           {/* Right Side Actions */}
@@ -71,7 +92,7 @@ export function Header({ currentPage, onNavigate, isLoggedIn, cartItemsCount }: 
                 <Button
                   variant="ghost"
                   size="icon"
-                  onClick={() => onNavigate("dashboard")}
+                  onClick={() => onNavigate("profile")}
                 >
                   <User className="h-5 w-5" />
                 </Button>
@@ -94,7 +115,7 @@ export function Header({ currentPage, onNavigate, isLoggedIn, cartItemsCount }: 
               </>
             )}
 
-            {/* Mobile Menu Button */}
+     {/* Mobile Menu Button */}
             <Button
               variant="ghost"
               size="icon"
@@ -110,21 +131,57 @@ export function Header({ currentPage, onNavigate, isLoggedIn, cartItemsCount }: 
         {mobileMenuOpen && (
           <div className="md:hidden py-4 border-t">
             <nav className="flex flex-col gap-3">
-              {navItems.map((item) => (
+              {/* Nút Home tĩnh */}
+              <button
+                onClick={() => {
+                  onNavigate("landing");
+                  setMobileMenuOpen(false);
+                }}
+                className={`text-left px-4 py-2 text-gray-700 hover:bg-gray-50 rounded-lg ${
+                  currentPage === "landing" ? "text-[#0A84FF] bg-blue-50" : ""
+                }`}
+              >
+                Home
+              </button>
+
+              {/* Vòng lặp Categories (Dữ liệu động) */}
+              {categories.map((cat) => (
                 <button
-                  key={item.value}
+                  key={cat.id}
                   onClick={() => {
-                    onNavigate(item.value);
-                    setMobileMenuOpen(false);
+                    onNavigate("categories", cat.id);
+                    setMobileMenuOpen(false); // Đóng menu sau khi chuyển hướng
                   }}
                   className={`text-left px-4 py-2 text-gray-700 hover:bg-gray-50 rounded-lg ${
-                    currentPage === item.value ? "text-[#0A84FF] bg-blue-50" : ""
+                    currentPage === cat.name ? "text-[#0A84FF] bg-blue-50" : ""
                   }`}
                 >
-                  {item.label}
+                  {cat.name}
                 </button>
               ))}
-              {!isLoggedIn && (
+              
+              {/* --- KHỐI XỬ LÝ AUTH MOBILE --- */}
+              {isLoggedIn ? (
+                // HIỂN THỊ LOGOUT KHI ĐÃ ĐĂNG NHẬP
+                <>
+                  <button
+                    onClick={() => onNavigate("profile")}
+                    className="text-left px-4 py-2 text-gray-700 hover:bg-gray-50 rounded-lg"
+                  >
+                    Hồ sơ
+                  </button>
+                  <button
+                    onClick={() => {
+                      logout(); // Gọi hàm logout từ AuthContext
+                      setMobileMenuOpen(false);
+                    }}
+                    className="text-left px-4 py-2 bg-red-50 text-red-600 rounded-lg hover:bg-red-100"
+                  >
+                    Đăng xuất
+                  </button>
+                </>
+              ) : (
+                // HIỂN THỊ LOGIN/SIGNUP KHI CHƯA ĐĂNG NHẬP
                 <>
                   <button
                     onClick={() => {
@@ -146,6 +203,7 @@ export function Header({ currentPage, onNavigate, isLoggedIn, cartItemsCount }: 
                   </button>
                 </>
               )}
+              {/* --- HẾT KHỐI AUTH MOBILE --- */}
             </nav>
           </div>
         )}

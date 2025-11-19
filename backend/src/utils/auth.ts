@@ -21,7 +21,7 @@ export const authenticateToken = (req: Request, res: Response, next: NextFunctio
     }
     
     // Gắn thông tin user (đã giải mã từ token) vào request
-    req.user = user;
+    (req as any).user = user;
     next(); // Cho phép đi tiếp
   });
 };

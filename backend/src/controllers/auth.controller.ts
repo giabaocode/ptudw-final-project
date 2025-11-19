@@ -25,7 +25,7 @@ export const login = async (req: Request, res: Response) => {
 export const getMe = async (req: Request, res: Response) => {
   try {
     // req.user được gắn từ middleware authenticateToken
-    const userId = req.user?.id;
+    const userId = (req as any).user?.id;
     if (!userId) {
       return res.status(401).json({ message: "Token không hợp lệ." });
     }

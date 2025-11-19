@@ -5,7 +5,7 @@ interface AuthContextType{
     isLoggedIn: boolean;
     user: User | null;
     token: string | null;
-    login: (user: User, token: string) => void;
+    login: (token: string, user: User ) => void;
     logout: () => void;
 }
 
@@ -18,12 +18,41 @@ export const AuthProvider: React.FC<{children: React.ReactNode}> = ({children}) 
         const storedUser = localStorage.getItem('authUser');    
         if(storedToken && storedUser){
            try{
-            setToken(storedToken);
-            setUser(JSON.parse(storedUser));
+                setToken(storedToken);
+                setUser(JSON.parse(storedUser));
             } catch (error){
                 console.error('Failed to parse stored user:', error);
                 localStorage.clear();
            }
         }
     }, []);
+    const login = (newToken: string, newUser: User) => {
+        setToken(newToken);
+        setUser(newUser);
+        localStorage.setItem('authToken', newToken);
+        localStorage.setItem('authUser', JSON.stringify(newUser));
+    };
+
+    const logout = () => {
+        setToken(null);
+        setUser(null);
+        localStorage.removeItem('authToken');
+        localStorage.removeItem('authUser');
+    };
+
+    const isLoggedIn = !!token;
+
+    return (
+        <AuthContext.Provider value={{isLoggedIn, user, token, login, logout}}>
+            {children}
+        </AuthContext.Provider>
+    );
+};
+
+export const useAuth = () =>{
+    const context = useContext(AuthContext);
+    if(context === undefined){
+        throw new Error('useAuth must be used within an AuthProvider');
+    }
+    return context;
 }
