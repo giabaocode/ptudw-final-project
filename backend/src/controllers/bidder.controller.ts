@@ -17,7 +17,7 @@ export const placeBid = async (req: Request, res: Response) => {
 export const getWatchlist = async (req: Request, res: Response) => {
   try {
     const userId = (req as any).user.id;
-    const list = await bidderService.getWatchlist(userId);
+    const list = await bidderService.getMyWatchlist(userId);
     res.json(list);
   } catch (error: any) {
     res.status(500).json({ message: error.message });
