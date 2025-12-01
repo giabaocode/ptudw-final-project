@@ -170,9 +170,10 @@ export function LoginPage({ onNavigate }: LoginPageProps) {
           </div>
 
         </div>
-        {/* --- KẾT THÚC CARD --- */}
+        {/* --- KẾT THÚC CARD --- */} 
 
       </div>
     </div>
   );
 }
+
