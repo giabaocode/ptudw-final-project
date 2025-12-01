@@ -1,15 +1,21 @@
 import { Router } from 'express';
-import { getCategories, getProducts, getProductById } from '../controllers/public.controller';
+import { getCategories, getProducts, getProductById, getHomepageTops, searchProducts } from '../controllers/public.controller';
+// Thêm dòng này
+import { getSellerProfile } from '../controllers/public.controller';
 
+// Route công khai
 const router = Router();
 
-// /api/categories
 router.get('/categories', getCategories);
 
-// /api/products
 router.get('/products', getProducts);
 
-// /api/products/:id
+router.get('/products/search', searchProducts);      // 1. Search
+// --- QUAN TRỌNG: homepage-tops PHẢI ĐỨNG TRƯỚC :id ---
+router.get('/products/homepage-tops', getHomepageTops); 
+// ------------------------------------------------------
+
 router.get('/products/:id', getProductById);
+router.get('/sellers/:id', getSellerProfile);
 
 export default router;

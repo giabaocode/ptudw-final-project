@@ -32,3 +32,35 @@ export const getProductById = async (req: Request, res: Response) => {
     res.status(404).json({ message: error.message });
   }
 };
+
+
+export const getHomepageTops = async (req: Request, res: Response) => {
+  try {
+    const result = await publicService.fetchHomepageTops();
+    res.json(result);
+  } catch (error: any) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
+export const searchProducts = async (req: Request, res: Response) => {
+  try {
+    const keyword = req.query.q as string;
+    if (!keyword) return res.json([]);
+    
+    const result = await publicService.searchProducts(keyword);
+    res.json(result);
+  } catch (error: any) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
+export const getSellerProfile = async (req: Request, res: Response) => {
+    try {
+        const id = parseInt(req.params.id);
+        const data = await publicService.getSellerInfo(id);
+        res.json(data);
+    } catch (error: any) {
+        res.status(404).json({ message: error.message });
+    }
+};

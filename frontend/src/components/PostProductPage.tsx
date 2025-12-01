@@ -1,3 +1,5 @@
+// File: frontend/src/components/PostProductPage.tsx
+// (Giữ nguyên các import)
 import React from "react";
 import { useForm } from "react-hook-form";
 import { Button } from "./ui/button";
@@ -65,7 +67,12 @@ export function PostProductPage({ onNavigate }: PostProductPageProps) {
                 <Label htmlFor="name">Tên sản phẩm</Label>
                 <Input
                   id="name"
-                  {...register("name", { required: "Bắt buộc" })}
+                  type="text" // Thêm type rõ ràng
+                  placeholder="Nhập tên sản phẩm"
+                  {...register("name", { 
+                    required: "Tên sản phẩm là bắt buộc",
+                    minLength: { value: 3, message: "Tên phải dài hơn 3 ký tự" }
+                  })}
                 />
                 {errors.name && (
                   <p className="text-red-500 text-sm">
@@ -77,7 +84,7 @@ export function PostProductPage({ onNavigate }: PostProductPageProps) {
               {/* Danh mục (Tạm thời nhập ID, sau này làm Select) */}
               <div>
                 <Label htmlFor="category_id">
-                  ID Danh mục (VD: 3=Điện thoại, 5=Đồng hồ)
+                  ID Danh mục (VD: 1=Điện thoại, 3=Đồng hồ)
                 </Label>
                 <Input
                   id="category_id"

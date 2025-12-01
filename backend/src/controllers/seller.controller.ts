@@ -12,7 +12,7 @@ export const createProduct = async (req: Request, res: Response) => {
     }
 };
 
-export const getMyProuducts = async (req: Request, res: Response) => {
+export const getMyProducts = async (req: Request, res: Response) => {
     try{
         const sellerId = (req as any).user.id;
         const products = await sellerService.getMyProducts(sellerId);

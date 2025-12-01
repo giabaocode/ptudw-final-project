@@ -1,16 +1,17 @@
 import { Router } from "express";
-import {
-  placeBid,
-  getWatchlist,
-  getMyBids,
-} from "../controllers/bidder.controller";
+import { placeBid, getWatchlist, getMyBids, addToWatchlist } from "../controllers/bidder.controller";
 import { authenticateToken } from "../utils/auth";
 
 const router = Router();
 
-// :id là product_id
+// Route ra giá
 router.post("/products/:id/bid", authenticateToken, placeBid);
+
+// Route Watchlist (Thêm & Xem)
 router.get("/watchlist", authenticateToken, getWatchlist);
+router.post("/products/:id/watchlist", authenticateToken, addToWatchlist); // <-- Route mới thêm
+
+// Route xem bid của tôi
 router.get("/my-bids", authenticateToken, getMyBids);
 
 export default router;
