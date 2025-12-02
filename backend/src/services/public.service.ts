@@ -1,6 +1,6 @@
 import pool from "../utils/db";
 
-// Task: API Lấy Danh mục
+// 1. Task: API Lấy Danh mục
 export const fetchCategories = async () => {
   const parentsResult = await pool.query(
     "SELECT * FROM Categories WHERE parent_id IS NULL"
@@ -17,7 +17,7 @@ export const fetchCategories = async () => {
   return parents;
 };
 
-// --- CẬP NHẬT HÀM NÀY: Thêm tham số categoryId ---
+// 2. Task: API Lấy Sản phẩm (có lọc Category)
 export const fetchProducts = async (
   page: number,
   limit: number,
@@ -25,7 +25,6 @@ export const fetchProducts = async (
 ) => {
   const offset = (page - 1) * limit;
 
-  // 1. Xây dựng câu query động
   let query = `
     SELECT p.*, c.name as category_name 
     FROM Products p
@@ -35,14 +34,12 @@ export const fetchProducts = async (
   const params: any[] = [];
   let paramIndex = 1;
 
-  // Nếu có lọc theo category
   if (categoryId) {
-    query += ` WHERE p.category_id = $${paramIndex} OR c.parent_id = $${paramIndex}`; // Lấy cả sản phẩm của danh mục con
+    query += ` WHERE (p.category_id = $${paramIndex} OR c.parent_id = $${paramIndex})`;
     params.push(categoryId);
     paramIndex++;
   }
 
-  // Thêm phân trang
   query += ` ORDER BY p.created_at DESC LIMIT $${paramIndex} OFFSET $${
     paramIndex + 1
   }`;
@@ -50,22 +47,20 @@ export const fetchProducts = async (
 
   const productsResult = await pool.query(query, params);
 
-  // Lấy ảnh và map tên category cho frontend
   for (const p of productsResult.rows) {
     const img = await pool.query(
       "SELECT image_url FROM Product_Images WHERE product_id = $1 LIMIT 1",
       [p.id]
     );
     p.images = img.rows.length > 0 ? [img.rows[0].image_url] : [];
-    p.category = p.category_name; // Gán tên category vào trường 'category' để frontend hiển thị thay vì 'General'
+    p.category = p.category_name;
   }
 
-  // Đếm tổng số lượng (để phân trang)
   let countQuery =
     "SELECT COUNT(*) as total FROM Products p LEFT JOIN Categories c ON p.category_id = c.id";
   let countParams: any[] = [];
   if (categoryId) {
-    countQuery += " WHERE p.category_id = $1 OR c.parent_id = $1";
+    countQuery += " WHERE (p.category_id = $1 OR c.parent_id = $1)";
     countParams.push(categoryId);
   }
   const totalResult = await pool.query(countQuery, countParams);
@@ -80,6 +75,7 @@ export const fetchProducts = async (
   };
 };
 
+// 3. Task: API Lấy chi tiết sản phẩm
 export const fetchProductById = async (id: number) => {
   const productRes = await pool.query(
     `
@@ -100,7 +96,6 @@ export const fetchProductById = async (id: number) => {
   }
 
   const product = productRes.rows[0];
-  // Map category name
   product.category = product.category_name;
 
   const imagesRes = await pool.query(
@@ -127,14 +122,13 @@ export const fetchProductById = async (id: number) => {
           full_name: product.bidder_name,
         }
       : null,
-    images: imagesRes.rows.map((row) => row.image_url),
+    images: imagesRes.rows.map((row: any) => row.image_url),
     description_history: descRes.rows,
   };
 };
 
-// --- CẬP NHẬT: Lấy tên Category cho trang chủ luôn ---
+// 4. Task: API Lấy Top sản phẩm cho Trang chủ (Đã cập nhật 3 danh sách)
 export const fetchHomepageTops = async () => {
-  // Helper function để xử lý ảnh và category
   const processProducts = async (products: any[]) => {
     for (const p of products) {
       const img = await pool.query(
@@ -142,11 +136,12 @@ export const fetchHomepageTops = async () => {
         [p.id]
       );
       p.images = img.rows.length > 0 ? [img.rows[0].image_url] : [];
-      p.category = p.category_name; // Map tên category
+      p.category = p.category_name;
     }
     return products;
   };
 
+  // Top 5 Sắp kết thúc
   const endingSoon = await pool.query(`
     SELECT p.*, c.name as category_name 
     FROM Products p 
@@ -155,14 +150,7 @@ export const fetchHomepageTops = async () => {
     ORDER BY end_at ASC LIMIT 5
   `);
 
-  const highestPrice = await pool.query(`
-    SELECT p.*, c.name as category_name 
-    FROM Products p 
-    LEFT JOIN Categories c ON p.category_id = c.id 
-    WHERE end_at > NOW() 
-    ORDER BY current_price DESC LIMIT 5
-  `);
-
+  // Top 5 Nhiều lượt ra giá nhất
   const mostBids = await pool.query(`
     SELECT p.*, c.name as category_name 
     FROM Products p 
@@ -171,13 +159,23 @@ export const fetchHomepageTops = async () => {
     ORDER BY bid_count DESC LIMIT 5
   `);
 
+  // Top 5 Giá cao nhất
+  const highestPrice = await pool.query(`
+    SELECT p.*, c.name as category_name 
+    FROM Products p 
+    LEFT JOIN Categories c ON p.category_id = c.id 
+    WHERE end_at > NOW() 
+    ORDER BY current_price DESC LIMIT 5
+  `);
+
   return {
     top_ending_soon: await processProducts(endingSoon.rows),
-    top_highest_price: await processProducts(highestPrice.rows),
     top_most_bids: await processProducts(mostBids.rows),
+    top_highest_price: await processProducts(highestPrice.rows),
   };
 };
 
+// 5. Task: Tìm kiếm sản phẩm
 export const searchProducts = async (keyword: string) => {
   const res = await pool.query(
     `SELECT p.*, c.name as category_name 
@@ -201,6 +199,7 @@ export const searchProducts = async (keyword: string) => {
   return res.rows;
 };
 
+// 6. Task: Lấy thông tin Seller
 export const getSellerInfo = async (sellerId: number) => {
   const userRes = await pool.query(
     `SELECT id, full_name, email, rating_plus, rating_minus, created_at 
@@ -218,8 +217,7 @@ export const getSellerInfo = async (sellerId: number) => {
     [sellerId]
   );
 
-  // Map category name cho seller products
-  productsRes.rows.forEach((p) => (p.category = p.category_name));
+  productsRes.rows.forEach((p: any) => (p.category = p.category_name));
 
   return { seller: userRes.rows[0], products: productsRes.rows };
 };
