@@ -1,4 +1,3 @@
-// File: backend/src/services/auth.service.ts
 import pool from "../utils/db";
 import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
@@ -6,30 +5,33 @@ import jwt from "jsonwebtoken";
 const JWT_SECRET = process.env.JWT_SECRET || "DEFAULT_SECRET";
 
 // Task: API Đăng ký
-// File: backend/src/services/auth.service.ts
-
 export const registerUser = async (userData: any) => {
   // 1. Lấy thêm user_type từ userData
   const { full_name, email, password, address, user_type } = userData;
 
-  // 2. Hash mật khẩu (Giữ nguyên)
+  // 2. Hash mật khẩu
   const salt = await bcrypt.genSalt(10);
   const password_hash = await bcrypt.hash(password, salt);
 
   // 3. Chuẩn hóa user_type (Frontend gửi 'buyer' nhưng DB có thể cần 'bidder')
   // Nếu frontend gửi 'buyer', ta đổi thành 'bidder', ngược lại giữ nguyên (vd: 'seller')
+  // Lưu ý: Đảm bảo DB enum của bạn hỗ trợ giá trị này
   const finalUserType = user_type === "buyer" ? "bidder" : user_type;
 
+  // 4. Lưu vào DB (Cú pháp query của Postgres)
   try {
-    // 4. Sửa câu Query: Thay 'bidder' bằng tham số $5
+    // Sửa câu Query: Thay 'bidder' cứng bằng tham số $5
     await pool.query(
       "INSERT INTO Users (full_name, email, password_hash, address, user_type) VALUES ($1, $2, $3, $4, $5)",
       [full_name, email, password_hash, address, finalUserType] // Truyền biến vào đây
     );
+    // (Trong dự án thật, bạn sẽ gửi email OTP ở đây)
   } catch (dbError: any) {
+    // Mã lỗi 'unique_violation' của Postgres
     if (dbError.code === "23505") {
       throw new Error("Email này đã được sử dụng.");
     }
+    console.error("Register Error:", dbError);
     throw new Error("Lỗi khi đăng ký tài khoản.");
   }
 };
