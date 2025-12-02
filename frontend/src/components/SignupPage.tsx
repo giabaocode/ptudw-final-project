@@ -4,12 +4,11 @@ import { Input } from "./ui/input";
 import { Label } from "./ui/label";
 import { RadioGroup, RadioGroupItem } from "./ui/radio-group";
 import { useState } from "react";
-import axios from 'axios';
+import axios from "axios";
 import { toast } from "sonner";
 
 interface SignupPageProps {
   onNavigate: (page: string) => void;
-
 }
 
 export function SignupPage({ onNavigate }: SignupPageProps) {
@@ -22,7 +21,6 @@ export function SignupPage({ onNavigate }: SignupPageProps) {
     address: "",
   });
 
-  
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target;
     setFormData((prev) => ({ ...prev, [name]: value }));
@@ -42,15 +40,18 @@ export function SignupPage({ onNavigate }: SignupPageProps) {
         password: formData.password,
         address: formData.address,
         // user_type sẽ được backend xử lý hoặc mặc định là bidder
+        user_type: accountType,
+        // Nếu backend cần số (ví dụ 1: buyer, 2: seller) thì phải map lại:
+        // role: accountType === 'seller' ? 'SELLER' : 'BIDDER'
       };
 
-      await axios.post('/api/auth/register', payload);
+      await axios.post("/api/auth/register", payload);
       toast.success("Đăng ký thành công! Vui lòng kiểm tra email để xác thực.");
       onNavigate("login");
-
     } catch (error: any) {
       console.error("Signup failed:", error);
-      const errorMessage = error.response?.data?.message || "Đăng ký thất bại. Vui lòng thử lại.";
+      const errorMessage =
+        error.response?.data?.message || "Đăng ký thất bại. Vui lòng thử lại.";
       toast.error(errorMessage);
     }
   };
@@ -60,14 +61,15 @@ export function SignupPage({ onNavigate }: SignupPageProps) {
       <div className="max-w-md w-full">
         {/* --- KHUNG CARD (BẮT ĐẦU) --- */}
         <div className="bg-white rounded-2xl shadow-lg p-8">
-          
           {/* Header của Card */}
           <div className="text-center mb-8">
             <div className="w-16 h-16 bg-gradient-to-br from-[#0A84FF] to-[#FFD700] rounded-2xl flex items-center justify-center mx-auto mb-4">
               <span className="text-2xl text-white">AB</span>
             </div>
             <h1 className="text-3xl text-gray-900 mb-2">Create Account</h1>
-            <p className="text-gray-600">Join AuctionBay to start buying or selling</p>
+            <p className="text-gray-600">
+              Join AuctionBay to start buying or selling
+            </p>
           </div>
 
           {/* Account Type Selection */}
@@ -76,11 +78,17 @@ export function SignupPage({ onNavigate }: SignupPageProps) {
             <RadioGroup
               value={accountType}
               // --- SỬA LỖI TẠI ĐÂY: Thêm type :string cho value ---
-              onValueChange={(value: string) => setAccountType(value as "buyer" | "seller")}
+              onValueChange={(value: string) =>
+                setAccountType(value as "buyer" | "seller")
+              }
               className="grid grid-cols-2 gap-4"
             >
               <div>
-                <RadioGroupItem value="buyer" id="buyer" className="peer sr-only" />
+                <RadioGroupItem
+                  value="buyer"
+                  id="buyer"
+                  className="peer sr-only"
+                />
                 <Label
                   htmlFor="buyer"
                   className="flex flex-col items-center justify-center rounded-xl border-2 border-gray-200 bg-white p-4 hover:bg-gray-50 peer-data-[state=checked]:border-[#0A84FF] peer-data-[state=checked]:bg-blue-50 cursor-pointer transition-all"
@@ -90,7 +98,11 @@ export function SignupPage({ onNavigate }: SignupPageProps) {
                 </Label>
               </div>
               <div>
-                <RadioGroupItem value="seller" id="seller" className="peer sr-only" />
+                <RadioGroupItem
+                  value="seller"
+                  id="seller"
+                  className="peer sr-only"
+                />
                 <Label
                   htmlFor="seller"
                   className="flex flex-col items-center justify-center rounded-xl border-2 border-gray-200 bg-white p-4 hover:bg-gray-50 peer-data-[state=checked]:border-[#0A84FF] peer-data-[state=checked]:bg-blue-50 cursor-pointer transition-all"
@@ -104,7 +116,6 @@ export function SignupPage({ onNavigate }: SignupPageProps) {
 
           {/* Form */}
           <form onSubmit={handleSubmit} className="space-y-4">
-            
             {/* Input Full Name */}
             <div>
               <Label htmlFor="name">Full Name</Label>
@@ -195,7 +206,7 @@ export function SignupPage({ onNavigate }: SignupPageProps) {
               </div>
             </div>
 
-            <Button 
+            <Button
               type="submit"
               className="w-full bg-[#0A84FF] hover:bg-[#0A84FF]/90 mt-6"
             >
@@ -206,9 +217,13 @@ export function SignupPage({ onNavigate }: SignupPageProps) {
           {/* Footer Links */}
           <p className="text-xs text-center text-gray-500 mt-4">
             By signing up, you agree to our{" "}
-            <a href="#" className="text-[#0A84FF] hover:underline">Terms of Service</a>{" "}
+            <a href="#" className="text-[#0A84FF] hover:underline">
+              Terms of Service
+            </a>{" "}
             and{" "}
-            <a href="#" className="text-[#0A84FF] hover:underline">Privacy Policy</a>
+            <a href="#" className="text-[#0A84FF] hover:underline">
+              Privacy Policy
+            </a>
           </p>
 
           <p className="text-center text-sm text-gray-600 mt-6">
@@ -221,7 +236,6 @@ export function SignupPage({ onNavigate }: SignupPageProps) {
               Sign in
             </button>
           </p>
-
         </div>
         {/* --- KHUNG CARD (KẾT THÚC) --- */}
       </div>
