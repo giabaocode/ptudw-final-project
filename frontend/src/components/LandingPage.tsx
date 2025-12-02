@@ -1,5 +1,12 @@
 // File: frontend/src/components/LandingPage.tsx
-import { Search, Clock, TrendingUp, DollarSign } from "lucide-react";
+import {
+  Search,
+  Clock,
+  TrendingUp,
+  DollarSign,
+  ChevronLeft,
+  ChevronRight,
+} from "lucide-react";
 import { Button } from "./ui/button";
 import { Input } from "./ui/input";
 import { ProductCard } from "./ProductCard";
@@ -14,6 +21,8 @@ interface LandingPageProps {
   categoryId?: number | null;
 }
 
+const ITEMS_PER_PAGE = 8; // Số sản phẩm trên mỗi trang
+
 const SkeletonCard = () => (
   <div className="space-y-3 bg-white rounded-xl p-4 shadow-sm">
     <Skeleton className="h-48 w-full rounded-lg" />
@@ -23,31 +32,80 @@ const SkeletonCard = () => (
   </div>
 );
 
+// Component Phân trang tái sử dụng
+const PaginationControls = ({
+  currentPage,
+  totalPages,
+  onPageChange,
+}: {
+  currentPage: number;
+  totalPages: number;
+  onPageChange: (page: number) => void;
+}) => {
+  if (totalPages <= 1) return null;
+
+  return (
+    <div className="flex justify-center items-center gap-2 mt-8">
+      <Button
+        variant="outline"
+        size="icon"
+        onClick={() => onPageChange(Math.max(1, currentPage - 1))}
+        disabled={currentPage === 1}
+        className="h-8 w-8"
+      >
+        <ChevronLeft className="h-4 w-4" />
+      </Button>
+      <span className="text-sm font-medium text-gray-600">
+        Trang {currentPage} / {totalPages}
+      </span>
+      <Button
+        variant="outline"
+        size="icon"
+        onClick={() => onPageChange(Math.min(totalPages, currentPage + 1))}
+        disabled={currentPage === totalPages}
+        className="h-8 w-8"
+      >
+        <ChevronRight className="h-4 w-4" />
+      </Button>
+    </div>
+  );
+};
+
 export function LandingPage({ onNavigate, categoryId }: LandingPageProps) {
-  // --- STATE CHO TRANG CHỦ (HOMEPAGE) ---
+  // --- STATE CHO TRANG CHỦ ---
   const [topEndingSoon, setTopEndingSoon] = useState<Auction[]>([]);
   const [topMostBids, setTopMostBids] = useState<Auction[]>([]);
   const [topHighestPrice, setTopHighestPrice] = useState<Product[]>([]);
 
-  // --- STATE CHO TRANG DANH MỤC (CATEGORY) ---
+  // --- STATE CHO TRANG DANH MỤC ---
   const [categoryAuctions, setCategoryAuctions] = useState<Auction[]>([]);
   const [categoryProducts, setCategoryProducts] = useState<Product[]>([]);
+
+  // State phân trang
+  const [auctionPage, setAuctionPage] = useState(1);
+  const [productPage, setProductPage] = useState(1);
 
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     const fetchData = async () => {
       setLoading(true);
+      // Reset trang về 1 khi đổi danh mục
+      setAuctionPage(1);
+      setProductPage(1);
+
       try {
         let response;
 
         if (categoryId) {
-          // === LOGIC KHI XEM DANH MỤC ===
           console.log("Đang tải danh mục ID:", categoryId);
-          response = await axios.get(`/api/products?category_id=${categoryId}`);
+          // Lấy 100 sản phẩm để có dữ liệu phân trang client-side
+          response = await axios.get(
+            `/api/products?category_id=${categoryId}&limit=100`
+          );
           const allItems = response.data.products;
 
-          // Lọc ra các món đang còn hạn đấu giá (end_at > now)
+          // Lọc ra các món đang còn hạn đấu giá
           const activeAuctions = allItems.filter(
             (p: any) => new Date(p.end_at) > new Date()
           );
@@ -60,7 +118,7 @@ export function LandingPage({ onNavigate, categoryId }: LandingPageProps) {
           setTopMostBids([]);
           setTopHighestPrice([]);
         } else {
-          // === LOGIC KHI Ở TRANG CHỦ ===
+          // Trang chủ
           response = await axios.get("/api/products/homepage-tops");
           const data = response.data;
 
@@ -68,7 +126,6 @@ export function LandingPage({ onNavigate, categoryId }: LandingPageProps) {
           setTopMostBids(data.top_most_bids);
           setTopHighestPrice(data.top_highest_price);
 
-          // Reset state danh mục
           setCategoryAuctions([]);
           setCategoryProducts([]);
         }
@@ -79,7 +136,20 @@ export function LandingPage({ onNavigate, categoryId }: LandingPageProps) {
       }
     };
     fetchData();
-  }, [categoryId]); // Chạy lại khi categoryId thay đổi
+  }, [categoryId]);
+
+  // Logic cắt dữ liệu theo trang
+  const currentAuctions = categoryAuctions.slice(
+    (auctionPage - 1) * ITEMS_PER_PAGE,
+    auctionPage * ITEMS_PER_PAGE
+  );
+  const totalAuctionPages = Math.ceil(categoryAuctions.length / ITEMS_PER_PAGE);
+
+  const currentProducts = categoryProducts.slice(
+    (productPage - 1) * ITEMS_PER_PAGE,
+    productPage * ITEMS_PER_PAGE
+  );
+  const totalProductPages = Math.ceil(categoryProducts.length / ITEMS_PER_PAGE);
 
   if (loading) {
     return (
@@ -98,7 +168,7 @@ export function LandingPage({ onNavigate, categoryId }: LandingPageProps) {
 
   return (
     <div className="min-h-screen bg-[#F5F5F7]">
-      {/* 1. HERO SECTION (Chỉ hiện ở Trang chủ) */}
+      {/* 1. HERO SECTION */}
       {!categoryId && (
         <section className="bg-gradient-to-br from-[#0A84FF] to-[#0066CC] text-white py-16 px-4 mb-8">
           <div className="max-w-7xl mx-auto text-center">
@@ -124,15 +194,13 @@ export function LandingPage({ onNavigate, categoryId }: LandingPageProps) {
         </section>
       )}
 
-      {/* 2. NỘI DUNG TRANG CHỦ (3 MỤC TOP) */}
+      {/* 2. NỘI DUNG TRANG CHỦ */}
       {!categoryId && (
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 space-y-16 pb-16">
           {/* Top 5 Sắp kết thúc */}
           {topEndingSoon.length > 0 && (
             <section>
-              <div className="flex items-center gap-2 mb-8">
-                {" "}
-                {/* Đổi thành mb-12 (48px) cho an toàn */}
+              <div className="flex items-center gap-2 mb-12">
                 <Clock className="h-6 w-6 text-red-500" />
                 <h2 className="text-2xl font-bold text-gray-900">
                   Sắp Kết Thúc
@@ -166,9 +234,7 @@ export function LandingPage({ onNavigate, categoryId }: LandingPageProps) {
           {/* Top 5 Nhiều lượt ra giá nhất */}
           {topMostBids.length > 0 && (
             <section>
-              <div className="flex items-center gap-2 mb-8 mt-8">
-                {" "}
-                {/* Đổi thành mb-12 */}
+              <div className="flex items-center gap-2 mb-12">
                 <TrendingUp className="h-6 w-6 text-blue-500" />
                 <h2 className="text-2xl font-bold text-gray-900">
                   Sôi Động Nhất
@@ -202,9 +268,7 @@ export function LandingPage({ onNavigate, categoryId }: LandingPageProps) {
           {/* Top 5 Giá cao nhất */}
           {topHighestPrice.length > 0 && (
             <section>
-              <div className="flex items-center gap-2 mb-8 mt-8">
-                {" "}
-                {/* Đổi thành mb-12 */}
+              <div className="flex items-center gap-2 mb-12">
                 <DollarSign className="h-6 w-6 text-green-500" />
                 <h2 className="text-2xl font-bold text-gray-900">
                   Top Giá Cao Nhất
@@ -236,22 +300,20 @@ export function LandingPage({ onNavigate, categoryId }: LandingPageProps) {
         </div>
       )}
 
-      {/* 3. NỘI DUNG KHI XEM DANH MỤC (Auctions + Products) */}
+      {/* 3. NỘI DUNG KHI XEM DANH MỤC */}
       {categoryId && (
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 space-y-12 pb-16 pt-8">
-          {/* Mục: Đang đấu giá (chỉ hiện nếu có) */}
-          {categoryAuctions.length > 0 && (
+          {/* Mục: Đang đấu giá */}
+          {currentAuctions.length > 0 && (
             <section>
               <div className="flex items-center gap-2 mb-12">
-                {" "}
-                {/* Đổi thành mb-12 */}
                 <Clock className="h-6 w-6 text-[#FFD700]" />
                 <h2 className="text-2xl font-bold text-gray-900">
                   Đang đấu giá trong danh mục này
                 </h2>
               </div>
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
-                {categoryAuctions.map((auction) => (
+                {currentAuctions.map((auction) => (
                   <AuctionCard
                     key={auction.id}
                     id={auction.id}
@@ -272,18 +334,23 @@ export function LandingPage({ onNavigate, categoryId }: LandingPageProps) {
                   />
                 ))}
               </div>
+
+              {/* Thanh phân trang cho Đấu giá */}
+              <PaginationControls
+                currentPage={auctionPage}
+                totalPages={totalAuctionPages}
+                onPageChange={setAuctionPage}
+              />
             </section>
           )}
 
           {/* Mục: Tất cả sản phẩm */}
           <section>
             <h2 className="text-2xl font-bold text-gray-900 mb-12">
-              {" "}
-              {/* Đổi thành mb-12 */}
               Tất cả sản phẩm
             </h2>
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
-              {categoryProducts.map((product) => (
+              {currentProducts.map((product) => (
                 <ProductCard
                   key={product.id}
                   id={product.id}
@@ -303,7 +370,7 @@ export function LandingPage({ onNavigate, categoryId }: LandingPageProps) {
                 />
               ))}
 
-              {categoryProducts.length === 0 && (
+              {currentProducts.length === 0 && (
                 <div className="col-span-full text-center py-12">
                   <p className="text-gray-500 text-lg">
                     Không tìm thấy sản phẩm nào trong danh mục này.
@@ -318,6 +385,13 @@ export function LandingPage({ onNavigate, categoryId }: LandingPageProps) {
                 </div>
               )}
             </div>
+
+            {/* Thanh phân trang cho Tất cả sản phẩm */}
+            <PaginationControls
+              currentPage={productPage}
+              totalPages={totalProductPages}
+              onPageChange={setProductPage}
+            />
           </section>
         </div>
       )}
