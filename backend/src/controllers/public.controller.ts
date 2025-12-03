@@ -94,3 +94,13 @@ export const getSellerProfile = async (req: Request, res: Response) => {
     res.status(404).json({ message: error.message });
   }
 };
+
+export const getBidHistory = async (req: Request, res: Response) => {
+  try {
+    const productId = parseInt(req.params.id);
+    const history = await publicService.getBidHistory(productId);
+    res.json(history);
+  } catch (error: any) {
+    res.status(500).json({ message: error.message });
+  }
+};
