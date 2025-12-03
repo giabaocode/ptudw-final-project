@@ -251,6 +251,10 @@ export function LandingPage({
                     ? product.images[0]
                     : ""
                 }
+                // --- THÊM 2 DÒNG NÀY ---
+                endTime={product.end_at} // Truyền thời gian kết thúc
+                bidCount={product.bid_count} // Truyền số lượt bid
+                // -----------------------
                 // Props mới
                 buyNowPrice={
                   product.buy_now_price
@@ -433,24 +437,35 @@ export function LandingPage({
               </div>
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
                 {currentAuctions.map((auction) => (
-                  <AuctionCard
+                  // --- THAY THẾ Ở ĐÂY: Dùng ProductCard thay cho AuctionCard ---
+                  <ProductCard
                     key={auction.id}
                     id={auction.id}
                     name={auction.name}
+                    price={
+                      Number(auction.current_price) > 0
+                        ? Number(auction.current_price)
+                        : Number(auction.start_price)
+                    }
+                    category={auction.category || "Đấu giá"}
                     image={
                       auction.images && auction.images.length > 0
                         ? auction.images[0]
                         : ""
                     }
-                    bidCount={auction.bid_count || 0}
-                    currentBid={
-                      Number(auction.current_price) > 0
-                        ? Number(auction.current_price)
-                        : Number(auction.start_price)
+                    // Truyền đầy đủ các props mới để hiện hiệu ứng
+                    endTime={auction.end_at}
+                    bidCount={auction.bid_count}
+                    bidderName={auction.bidder_name}
+                    buyNowPrice={
+                      auction.buy_now_price
+                        ? Number(auction.buy_now_price)
+                        : undefined
                     }
-                    endTime={new Date(auction.end_at)}
+                    createdAt={auction.created_at}
                     onViewDetails={(id) => onNavigate("auction", id)}
                   />
+                  // -------------------------------------------------------------
                 ))}
               </div>
 
