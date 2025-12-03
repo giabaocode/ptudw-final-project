@@ -500,6 +500,17 @@ export function LandingPage({
                       ? product.images[0]
                       : ""
                   }
+                  // --- BỔ SUNG CÁC PROPS NÀY VÀO ---
+                  endTime={product.end_at}
+                  bidCount={product.bid_count}
+                  bidderName={product.bidder_name}
+                  buyNowPrice={
+                    product.buy_now_price
+                      ? Number(product.buy_now_price)
+                      : undefined
+                  }
+                  createdAt={product.created_at}
+                  // ---------------------------------
                   onViewDetails={(id) => onNavigate("product", id)}
                 />
               ))}
