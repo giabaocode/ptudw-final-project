@@ -82,11 +82,18 @@ export const fetchProducts = async (
 
 // 3. Task: API Lấy chi tiết sản phẩm
 export const fetchProductById = async (id: number) => {
+  // 1. Lấy chi tiết sản phẩm + Thông tin Seller + Thông tin Bidder (Kèm Rating)
   const productRes = await pool.query(
     `
     SELECT p.*, c.name as category_name,
-           s.full_name as seller_name, s.rating_plus as seller_rating_plus, s.rating_minus as seller_rating_minus,
-           b.full_name as bidder_name
+           -- Thông tin Seller
+           s.full_name as seller_name, 
+           s.rating_plus as seller_rating_plus, 
+           s.rating_minus as seller_rating_minus,
+           -- Thông tin Bidder
+           b.full_name as bidder_name,
+           b.rating_plus as bidder_rating_plus,   -- <--- Lấy thêm
+           b.rating_minus as bidder_rating_minus  -- <--- Lấy thêm
     FROM Products p
     LEFT JOIN Categories c ON p.category_id = c.id
     JOIN Users s ON p.seller_id = s.id
@@ -103,14 +110,30 @@ export const fetchProductById = async (id: number) => {
   const product = productRes.rows[0];
   product.category = product.category_name;
 
+  // 2. Lấy ảnh
   const imagesRes = await pool.query(
     `SELECT image_url FROM Product_Images WHERE product_id = $1 ORDER BY id ASC`,
     [id]
   );
 
+  // 3. Lấy lịch sử mô tả
   const descRes = await pool.query(
     `SELECT description_text, created_at FROM Product_Description_History WHERE product_id = $1 ORDER BY created_at ASC`,
     [id]
+  );
+
+  // 4. [MỚI] Lấy 5 sản phẩm liên quan (Cùng category, khác ID hiện tại)
+  const relatedRes = await pool.query(
+    `
+    SELECT p.*, c.name as category_name,
+           (SELECT image_url FROM Product_Images WHERE product_id = p.id ORDER BY id ASC LIMIT 1) as thumbnail
+    FROM Products p
+    LEFT JOIN Categories c ON p.category_id = c.id
+    WHERE p.category_id = $1 AND p.id != $2 AND p.end_at > NOW()
+    ORDER BY p.bid_count DESC -- Ưu tiên sản phẩm hot
+    LIMIT 5
+    `,
+    [product.category_id, id]
   );
 
   return {
@@ -121,16 +144,18 @@ export const fetchProductById = async (id: number) => {
       rating_plus: product.seller_rating_plus,
       rating_minus: product.seller_rating_minus,
     },
-    // Trả về bidder_name trực tiếp ở cấp cao nhất để tiện dùng
-    bidder_name: product.bidder_name,
+    // Thông tin Bidder chi tiết
     current_highest_bidder: product.current_highest_bidder_id
       ? {
           id: product.current_highest_bidder_id,
           full_name: product.bidder_name,
+          rating_plus: product.bidder_rating_plus, // <--- Trả về
+          rating_minus: product.bidder_rating_minus, // <--- Trả về
         }
       : null,
     images: imagesRes.rows.map((row: any) => row.image_url),
     description_history: descRes.rows,
+    related_products: relatedRes.rows.map(mapProductImage), // <--- Trả về 5 SP liên quan
   };
 };
 
