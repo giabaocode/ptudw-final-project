@@ -327,7 +327,9 @@ export function AuctionPage({ onNavigate, auctionId }: AuctionPageProps) {
                           <p className="text-xs text-gray-500">{new Date(bid.created_at).toLocaleString()}</p>
                         </div>
                       </div>
-                      <p className="font-semibold text-[#0A84FF]">${bid.amount.toLocaleString()}</p>
+                      <p className="font-semibold text-[#0A84FF]">
+                        ${Number(bid.amount || 0).toLocaleString()}
+                      </p>
                     </div>
                   ))
                 ) : (

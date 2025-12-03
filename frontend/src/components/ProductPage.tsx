@@ -148,7 +148,7 @@ export function ProductPage({ onNavigate, onAddToCart, productId }: ProductPageP
               </div>
 
               <div className="flex items-baseline gap-3 mb-6">
-                <span className="text-4xl text-gray-900">${product.price}</span>
+                <span className="text-4xl text-gray-900">${product.current_price}</span>
               </div>
               
               {/* 7. Hiển thị mô tả từ history (thay cho P tĩnh) */}
@@ -228,7 +228,7 @@ export function ProductPage({ onNavigate, onAddToCart, productId }: ProductPageP
                 key={related.id}
                 id={related.id}
                 name={related.name}
-                price={related.price}
+                price={Number(product.current_price) > 0 ? Number(product.current_price) : Number(product.start_price)}
                 category={related.category || "General"}
                 // Sửa lỗi: Lấy ảnh đầu tiên từ mảng 'images'
                 image={related.images && related.images.length > 0 ? related.images[0] : ""} 

@@ -161,30 +161,32 @@ export const addToWatchlist = async (userId: number, productId: number) => {
   };
 };
 
+// backend/src/services/bidder.service.ts
+
 export const getMyWatchList = async (userId: number) => {
-  const res = await pool.query(
-    `SELECT p.*, 
-        (SELECT image_url FROM Product_Images WHERE product_id = p.id LIMIT 1) AS image 
+    // Sửa ORDER BY thành p.id DESC (An toàn nhất, không lo thiếu cột created_at)
+    const res = await pool.query(
+        `SELECT p.*, 
+        (SELECT image_url FROM Product_Images WHERE product_id = p.id ORDER BY id ASC LIMIT 1) AS image 
         FROM Watchlists w
         JOIN Products p ON w.product_id = p.id
         WHERE w.user_id = $1
-        ORDER BY w.created_at DESC`,
-    [userId]
-  );
-
-  return res.rows;
+        ORDER BY p.id DESC`, 
+        [userId]
+    );
+    return res.rows;
 };
 
-// Đây là hàm bị thiếu khiến Controller báo lỗi
 export const getMyBid = async (userId: number) => {
-  const res = await pool.query(
-    `SELECT DISTINCT p.*, b.amount as my_bid_amount,
-        (SELECT image_url FROM Product_Images WHERE product_id = p.id AND is_thumbnail = TRUE LIMIT 1) AS image
+    // Sửa ORDER BY thành p.id DESC
+    const res = await pool.query(
+        `SELECT DISTINCT p.*, b.amount as my_bid_amount,
+        (SELECT image_url FROM Product_Images WHERE product_id = p.id ORDER BY id ASC LIMIT 1) AS image
         FROM Bids b
         JOIN Products p ON b.product_id = p.id
         WHERE b.bidder_id = $1
-        ORDER BY b.created_at DESC`,
-    [userId]
-  );
-  return res.rows;
+        ORDER BY p.id DESC`, 
+        [userId]
+    );
+    return res.rows;
 };

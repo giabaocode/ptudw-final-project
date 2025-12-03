@@ -154,3 +154,26 @@ export const getSellerInfo = async (sellerId: number) => {
 
     return { seller: userRes.rows[0], products: productsRes.rows };
 };
+
+export const getBidHistory = async (productId: number) => {
+    const res = await pool.query(`
+        SELECT b.amount, b.created_at, u.full_name
+        FROM Bids b
+        JOIN Users u ON b.bidder_id = u.id
+        WHERE b.product_id = $1
+        ORDER BY b.amount DESC
+    `, [productId]);
+
+    return res.rows.map(bid => {
+        // Logic che tên
+        const nameParts = bid.full_name ? bid.full_name.trim().split(' ') : ['Anonymous'];
+        const lastName = nameParts[nameParts.length - 1];
+        
+        return {
+            // QUAN TRỌNG: Phải trả về amount và ép kiểu Number
+            amount: Number(bid.amount), 
+            created_at: bid.created_at,
+            bidder_name: `*** ${lastName}`
+        };
+    });
+};
