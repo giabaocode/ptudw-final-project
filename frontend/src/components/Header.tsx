@@ -10,21 +10,35 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "./ui/dropdown-menu";
+import { Search } from "lucide-react";
 
 interface HeaderProps {
   currentPage: string;
   onNavigate: (page: string, id?: number) => void;
   cartItemsCount: number;
+  onSearch?: (query: string) => void; // Prop mới optional
 }
 
 export function Header({
   currentPage,
   onNavigate,
   cartItemsCount,
+  onSearch,
 }: HeaderProps) {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const { isLoggedIn, logout } = useAuth();
   const [categories, setCategories] = useState<Category[]>([]);
+  const [keyword, setKeyword] = useState("");
+
+  const handleSearchSubmit = () => {
+    if (onSearch && keyword.trim()) {
+      onSearch(keyword);
+    }
+  };
+
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === "Enter") handleSearchSubmit();
+  };
 
   useEffect(() => {
     const fetchCategories = async () => {
@@ -51,6 +65,24 @@ export function Header({
               <span className="text-white font-bold">AB</span>
             </div>
             <span className="text-xl font-bold text-gray-900">AuctionBay</span>
+          </div>
+          <div className="hidden md:flex items-center flex-1 max-w-md mx-8">
+            <div className="relative w-full">
+              <input
+                type="text"
+                placeholder="Tìm kiếm sản phẩm..."
+                className="w-full pl-10 pr-4 py-2 rounded-full border border-gray-200 focus:border-[#0A84FF] focus:ring-1 focus:ring-[#0A84FF] outline-none text-sm bg-gray-50"
+                value={keyword}
+                onChange={(e) => setKeyword(e.target.value)}
+                onKeyDown={handleKeyDown}
+              />
+              <button
+                onClick={handleSearchSubmit}
+                className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-[#0A84FF]"
+              >
+                <Search className="h-4 w-4" />
+              </button>
+            </div>
           </div>
 
           {/* --- MENU DESKTOP 2 CẤP --- */}

@@ -22,37 +22,29 @@ export interface DescriptionHistory {
 export interface Product {
   id: number;
   name: string;
-
-  // Giá
   start_price: number;
   current_price: number;
   step_price: number;
-  buy_now_price?: number;
-
-  // Thời gian
+  buy_now_price?: number; // Đã có
   start_at?: string;
   end_at: string;
+  created_at: string; // Thêm trường này để tính sản phẩm mới
 
-  // Ảnh & Mô tả
-  image?: string; // Thumbnail
-  images?: string[]; // Mảng ảnh (có thể null nếu backend chưa join)
+  image?: string;
+  images?: string[];
   description?: string;
   description_history?: DescriptionHistory[];
 
-  // Quan hệ
   category_id?: number;
   category?: string;
 
+  seller?: User;
   seller_id?: number;
-  seller?: User; // Frontend mong đợi (có thể thiếu)
-
+  // Bổ sung bidder_name lấy từ join bảng search
+  bidder_name?: string;
   current_highest_bidder_id?: number;
-  current_highest_bidder?: User;
 
-  // Stats
   bid_count?: number;
-
-  // UI helpers
   related_products?: Product[];
 }
 

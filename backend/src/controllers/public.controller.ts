@@ -59,9 +59,24 @@ export const getHomepageTops = async (req: Request, res: Response) => {
 export const searchProducts = async (req: Request, res: Response) => {
   try {
     const keyword = req.query.q as string;
-    if (!keyword) return res.json([]);
+    const page = parseInt(req.query.page as string) || 1;
+    const limit = parseInt(req.query.limit as string) || 10;
+    const sort = (req.query.sort as string) || "default"; // time_desc, price_asc
 
-    const result = await publicService.searchProducts(keyword);
+    if (!keyword)
+      return res.json({
+        products: [],
+        pagination: { total_pages: 0, current_page: 1 },
+      });
+
+    console.log(`[Search] Keyword: ${keyword}, Page: ${page}, Sort: ${sort}`);
+
+    const result = await publicService.searchProducts(
+      keyword,
+      page,
+      limit,
+      sort
+    );
     res.json(result);
   } catch (error: any) {
     console.error(">>> [ERROR] searchProducts:", error);

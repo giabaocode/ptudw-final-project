@@ -15,10 +15,18 @@ import { useState, useEffect } from "react";
 import axios from "axios";
 import { Product, Auction } from "../types";
 import { Skeleton } from "./ui/skeleton";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "./ui/select"; // Cần component Select từ shadcn/ui
 
 interface LandingPageProps {
   onNavigate: (page: string, id?: number) => void;
   categoryId?: number | null;
+  searchQuery?: string; // Prop mới
 }
 
 const ITEMS_PER_PAGE = 8; // Số sản phẩm trên mỗi trang
@@ -71,7 +79,11 @@ const PaginationControls = ({
   );
 };
 
-export function LandingPage({ onNavigate, categoryId }: LandingPageProps) {
+export function LandingPage({
+  onNavigate,
+  categoryId,
+  searchQuery,
+}: LandingPageProps) {
   // --- STATE CHO TRANG CHỦ ---
   const [topEndingSoon, setTopEndingSoon] = useState<Auction[]>([]);
   const [topMostBids, setTopMostBids] = useState<Auction[]>([]);
@@ -85,6 +97,12 @@ export function LandingPage({ onNavigate, categoryId }: LandingPageProps) {
   const [auctionPage, setAuctionPage] = useState(1);
   const [productPage, setProductPage] = useState(1);
 
+  // State cho Search
+  const [searchResults, setSearchResults] = useState<Product[]>([]);
+  const [searchPage, setSearchPage] = useState(1);
+  const [searchTotalPages, setSearchTotalPages] = useState(1);
+  const [sortOption, setSortOption] = useState("default"); // default, time_desc, price_asc
+
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -97,7 +115,27 @@ export function LandingPage({ onNavigate, categoryId }: LandingPageProps) {
       try {
         let response;
 
-        if (categoryId) {
+        if (searchQuery) {
+          // --- LOGIC SEARCH ---
+          console.log(
+            `Searching: ${searchQuery}, Sort: ${sortOption}, Page: ${searchPage}`
+          );
+          response = await axios.get(`/api/products/search`, {
+            params: {
+              q: searchQuery,
+              page: searchPage,
+              limit: ITEMS_PER_PAGE,
+              sort: sortOption,
+            },
+          });
+          setSearchResults(response.data.products);
+          setSearchTotalPages(response.data.pagination.total_pages);
+
+          // Reset các state khác để UI không bị lẫn
+          setCategoryAuctions([]);
+          setCategoryProducts([]);
+          setTopEndingSoon([]);
+        } else if (categoryId) {
           console.log("Đang tải danh mục ID:", categoryId);
           // Lấy 100 sản phẩm để có dữ liệu phân trang client-side
           response = await axios.get(
@@ -136,7 +174,7 @@ export function LandingPage({ onNavigate, categoryId }: LandingPageProps) {
       }
     };
     fetchData();
-  }, [categoryId]);
+  }, [categoryId, searchQuery, searchPage, sortOption]); // Thêm dependencies
 
   // Logic cắt dữ liệu theo trang
   const currentAuctions = categoryAuctions.slice(
@@ -161,6 +199,87 @@ export function LandingPage({ onNavigate, categoryId }: LandingPageProps) {
               <SkeletonCard key={i} />
             ))}
           </div>
+        </div>
+      </div>
+    );
+  }
+
+  // --- RENDER GIAO DIỆN SEARCH ---
+  if (searchQuery) {
+    return (
+      <div className="min-h-screen bg-[#F5F5F7] px-4 sm:px-6 lg:px-8 py-8">
+        <div className="max-w-7xl mx-auto">
+          {/* Header kết quả tìm kiếm + Filter */}
+          <div className="flex flex-col md:flex-row justify-between items-center mb-8 gap-4">
+            <h2 className="text-2xl font-bold text-gray-900">
+              Kết quả tìm kiếm cho:{" "}
+              <span className="text-[#0A84FF]">"{searchQuery}"</span>
+            </h2>
+
+            <div className="flex items-center gap-2">
+              <span className="text-sm text-gray-600">Sắp xếp:</span>
+              <Select value={sortOption} onValueChange={setSortOption}>
+                <SelectTrigger className="w-[200px] bg-white">
+                  <SelectValue placeholder="Mặc định" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="default">Liên quan nhất</SelectItem>
+                  <SelectItem value="time_desc">
+                    Thời gian kết thúc giảm dần
+                  </SelectItem>
+                  <SelectItem value="price_asc">Giá tăng dần</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+
+          {/* Grid Sản phẩm */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+            {searchResults.map((product) => (
+              <ProductCard
+                key={product.id}
+                id={product.id}
+                name={product.name}
+                price={
+                  Number(product.current_price) > 0
+                    ? Number(product.current_price)
+                    : Number(product.start_price)
+                }
+                category={product.category || "General"}
+                image={
+                  product.images && product.images.length > 0
+                    ? product.images[0]
+                    : ""
+                }
+                // Props mới
+                buyNowPrice={
+                  product.buy_now_price
+                    ? Number(product.buy_now_price)
+                    : undefined
+                }
+                bidderName={product.bidder_name || undefined}
+                createdAt={product.created_at}
+                onViewDetails={(id) => onNavigate("product", id)}
+              />
+            ))}
+          </div>
+
+          {/* Empty State */}
+          {searchResults.length === 0 && (
+            <div className="text-center py-20 bg-white rounded-xl shadow-sm">
+              <Search className="h-12 w-12 text-gray-300 mx-auto mb-4" />
+              <p className="text-gray-500 text-lg">
+                Không tìm thấy sản phẩm nào phù hợp.
+              </p>
+            </div>
+          )}
+
+          {/* Pagination */}
+          <PaginationControls
+            currentPage={searchPage}
+            totalPages={searchTotalPages}
+            onPageChange={setSearchPage}
+          />
         </div>
       </div>
     );
