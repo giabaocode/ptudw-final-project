@@ -47,16 +47,18 @@ export function ProfilePage({ onNavigate }: ProfilePageProps) {
         }
 
         // 3. Lấy Sản phẩm seller (Nếu là seller)
+    
         if (user?.user_type === 'seller') {
-            try {
-                const resProds = await axios.get("/api/seller/my-products", { 
-                    headers: { Authorization: `Bearer ${token}` } 
-                });
-                setMyProducts(resProds.data);
-            } catch (error) {
-                console.warn("Lỗi tải My Products:", error);
-            }
+          try {
+              const resProds = await axios.get("/api/seller/my-products", { 
+                  headers: { Authorization: `Bearer ${token}` } 
+              });
+              // SỬA LẠI: Lấy thuộc tính .products từ object trả về
+              setMyProducts(resProds.data.products); 
+          } catch (error) {
+              console.warn("Lỗi tải My Products:", error);
         }
+}
 
         setLoading(false);
     };
