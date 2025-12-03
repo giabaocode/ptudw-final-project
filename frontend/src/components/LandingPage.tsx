@@ -246,6 +246,8 @@ export function LandingPage({
                     : Number(product.start_price)
                 }
                 category={product.category || "General"}
+                categoryId={product.category_id}
+                onCategoryClick={(id) => onNavigate("categories", id)}
                 image={
                   product.images && product.images.length > 0
                     ? product.images[0]
@@ -409,6 +411,8 @@ export function LandingPage({
                         : Number(product.start_price)
                     }
                     category={product.category || "General"}
+                    categoryId={product.category_id}
+                    onCategoryClick={(id) => onNavigate("categories", id)}
                     image={
                       product.images && product.images.length > 0
                         ? product.images[0]
@@ -453,6 +457,7 @@ export function LandingPage({
                         ? auction.images[0]
                         : ""
                     }
+                    onCategoryClick={(id) => onNavigate("categories", id)}
                     // Truyền đầy đủ các props mới để hiện hiệu ứng
                     endTime={auction.end_at}
                     bidCount={auction.bid_count}
@@ -495,6 +500,8 @@ export function LandingPage({
                       : Number(product.start_price)
                   }
                   category={product.category || "General"}
+                  categoryId={product.category_id}
+                  onCategoryClick={(id) => onNavigate("categories", id)}
                   image={
                     product.images && product.images.length > 0
                       ? product.images[0]

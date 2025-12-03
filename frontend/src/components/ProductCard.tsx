@@ -25,6 +25,11 @@ interface ProductCardProps {
   endTime?: string;
   bidCount?: number;
 
+  // --- [1] THÊM 2 PROPS MỚI ---
+  categoryId?: number;
+  onCategoryClick?: (id: number) => void;
+  // ----------------------------
+
   onViewDetails: (id: number) => void;
 }
 
@@ -41,6 +46,8 @@ export function ProductCard({
   createdAt,
   endTime,
   bidCount, // Nhận props
+  categoryId,
+  onCategoryClick,
   onViewDetails,
 }: ProductCardProps) {
   // --- LOGIC TÍNH THỜI GIAN CÒN LẠI ---
@@ -151,9 +158,20 @@ export function ProductCard({
 
       <div className={`p-4 space-y-2 ${isNew ? "bg-yellow-50/40" : ""}`}>
         <div className="flex justify-between items-start">
-          <p className="text-xs text-[#0A84FF] font-medium bg-blue-50 px-2 py-0.5 rounded">
+          {/* --- [2] SỬA PHẦN HIỂN THỊ DANH MỤC --- */}
+          <p
+            className="text-xs text-[#0A84FF] font-medium bg-blue-50 px-2 py-0.5 rounded hover:bg-[#0A84FF] hover:text-white transition-colors cursor-pointer z-20 relative"
+            onClick={(e) => {
+              e.stopPropagation(); // Ngăn sự kiện click lan ra thẻ cha (vào trang chi tiết)
+              if (onCategoryClick && categoryId) {
+                onCategoryClick(categoryId);
+              }
+            }}
+            title="Xem danh mục này"
+          >
             {category}
           </p>
+          {/* -------------------------------------- */}
 
           {/* --- [SỬA ĐOẠN NÀY] --- */}
           {createdAt && (
