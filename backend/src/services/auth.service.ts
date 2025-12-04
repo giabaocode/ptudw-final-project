@@ -1,7 +1,7 @@
 import pool from "../utils/db";
 import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
-// import axios from "axios"; // Không cần axios nữa vì không gọi Google
+import { sendVerificationEmail } from "../utils/email"; // Import mới
 
 const JWT_SECRET = process.env.JWT_SECRET || "DEFAULT_SECRET";
 
@@ -30,6 +30,11 @@ export const registerUser = async (userData: any) => {
   const password_hash = await bcrypt.hash(password, salt);
   const finalUserType = user_type === "buyer" ? "bidder" : user_type;
 
+  // Sinh OTP 6 số
+  const otpCode = Math.floor(100000 + Math.random() * 900000).toString();
+  // Hết hạn sau 15 phút
+  const otpExpiresAt = new Date(Date.now() + 15 * 60 * 1000);
+
   const client = await pool.connect();
 
   try {
@@ -42,11 +47,23 @@ export const registerUser = async (userData: any) => {
       throw new Error("Email này đã được sử dụng. Vui lòng chọn email khác.");
     }
 
-    // Insert User mới
+    /// INSERT kèm OTP và is_verified = FALSE
     await client.query(
-      "INSERT INTO Users (full_name, email, password_hash, address, user_type) VALUES ($1, $2, $3, $4, $5)",
-      [full_name, email, password_hash, address, finalUserType]
+      `INSERT INTO Users 
+       (full_name, email, password_hash, address, user_type, is_verified, otp_code, otp_expires_at) 
+       VALUES ($1, $2, $3, $4, $5, FALSE, $6, $7)`,
+      [
+        full_name,
+        email,
+        password_hash,
+        address,
+        finalUserType,
+        otpCode,
+        otpExpiresAt,
+      ]
     );
+    // Gửi email (bất đồng bộ, không cần await để trả response nhanh)
+    sendVerificationEmail(email, otpCode);
   } catch (error: any) {
     throw error;
   } finally {
@@ -64,6 +81,14 @@ export const loginUser = async (email: string, password: string) => {
     throw new Error("Email hoặc mật khẩu không đúng.");
   }
   const user = result.rows[0];
+
+  // --- KIỂM TRA XÁC THỰC ---
+  if (!user.is_verified) {
+    throw new Error(
+      "Tài khoản chưa được xác thực. Vui lòng kiểm tra email để lấy mã OTP."
+    );
+  }
+  // --------------------------
 
   const isMatch = await bcrypt.compare(password, user.password_hash);
   if (!isMatch) {
@@ -85,6 +110,41 @@ export const loginUser = async (email: string, password: string) => {
       user_type: user.user_type,
     },
   };
+};
+
+// 3. Hàm xác thực OTP (Mới)
+export const verifyEmail = async (email: string, otp: string) => {
+  const client = await pool.connect();
+  try {
+    const res = await client.query("SELECT * FROM Users WHERE email = $1", [
+      email,
+    ]);
+    if (res.rows.length === 0) throw new Error("Email không tồn tại.");
+    const user = res.rows[0];
+
+    if (user.is_verified)
+      return { message: "Tài khoản đã được xác thực trước đó." };
+
+    if (user.otp_code !== otp) throw new Error("Mã OTP không chính xác.");
+
+    if (new Date() > new Date(user.otp_expires_at)) {
+      throw new Error(
+        "Mã OTP đã hết hạn. Vui lòng đăng ký lại hoặc yêu cầu gửi lại mã."
+      );
+    }
+
+    // Kích hoạt tài khoản & Xóa OTP
+    await client.query(
+      "UPDATE Users SET is_verified = TRUE, otp_code = NULL, otp_expires_at = NULL WHERE id = $1",
+      [user.id]
+    );
+
+    return {
+      message: "Xác thực thành công! Bạn có thể đăng nhập ngay bây giờ.",
+    };
+  } finally {
+    client.release();
+  }
 };
 
 // 3. Lấy thông tin User (Giữ nguyên)

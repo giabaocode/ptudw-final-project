@@ -14,6 +14,7 @@ import { ProfilePage } from "./components/ProfilePage";
 import { Toaster } from "./components/ui/sonner";
 import { AuthProvider, useAuth } from "./context/AuthContext";
 import { SellerProfilePage } from "./components/SellerProfilePage";
+import { VerifyPage } from "./components/VerifyPage";
 
 // Component Wrapper để lấy AuthContext trong App
 const AppContent = () => {
@@ -79,6 +80,8 @@ const AppContent = () => {
         ) : (
           <LoginPage onNavigate={handleNavigate} />
         );
+      case "verify":
+        return <VerifyPage onNavigate={handleNavigate} />;
       case "auction":
         return (
           <AuctionPage onNavigate={handleNavigate} auctionId={currentId} />

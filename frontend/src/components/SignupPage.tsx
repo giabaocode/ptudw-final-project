@@ -75,8 +75,17 @@ export function SignupPage({ onNavigate }: SignupPageProps) {
       };
 
       await axios.post("/api/auth/register", payload);
+
+      toast.success("Đăng ký thành công! Vui lòng xác thực email.");
+
+      // --- [SỬA ĐOẠN NÀY] ---
+      // 1. Lưu email để trang Verify biết là đang xác thực cho ai
+      localStorage.setItem("registrationEmail", formData.email);
+
+      // 2. Chuyển hướng sang trang Verify (thay vì login)
+      onNavigate("verify");
+      // ---------------------
       toast.success("Đăng ký thành công! Vui lòng đăng nhập.");
-      onNavigate("login");
     } catch (error: any) {
       console.error("Signup failed:", error);
       const errorMessage = error.response?.data?.message || "Đăng ký thất bại.";
