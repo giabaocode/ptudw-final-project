@@ -16,13 +16,15 @@ import {
   CarouselNext,
   CarouselPrevious,
 } from "./ui/carousel";
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import axios from "axios";
 import { Auction } from "../types";
 import { toast } from "sonner";
 import { useAuth } from "../context/AuthContext";
 import { Skeleton } from "./ui/skeleton";
 import { Label } from "./ui/label";
+import { AlertTriangle, X } from "lucide-react";
+import { createPortal } from "react-dom";
 
 interface AuctionPageProps {
   onNavigate: (page: string, id?: any) => void;
@@ -35,7 +37,6 @@ interface BidHistory {
   created_at: string;
 }
 
-// --- SKELETON LOADING ---
 const AuctionPageSkeleton = () => (
   <div className="max-w-7xl mx-auto py-8 px-4 sm:px-6 lg:px-8">
     <Skeleton className="h-6 w-1/3 mb-6" />
@@ -55,6 +56,8 @@ const AuctionPageSkeleton = () => (
 );
 
 export function AuctionPage({ onNavigate, auctionId }: AuctionPageProps) {
+  const confirmBtnRef = useRef<HTMLButtonElement | null>(null);
+
   const [auction, setAuction] = useState<Auction | null>(null);
   const [bidHistory, setBidHistory] = useState<BidHistory[]>([]);
   const [loading, setLoading] = useState(true);
@@ -64,21 +67,19 @@ export function AuctionPage({ onNavigate, auctionId }: AuctionPageProps) {
   const [watchlistLoading, setWatchlistLoading] = useState(false);
 
   const { isLoggedIn, token } = useAuth();
+  const [showConfirmModal, setShowConfirmModal] = useState(false);
+  const [modalReady, setModalReady] = useState(false); // đảm bảo modal fully mounted trước focus
+  const [pendingBidAmount, setPendingBidAmount] = useState<number | null>(null);
 
-  // --- 1. FETCH DATA ---
   const fetchAuctionData = useCallback(
     async (redirectOnError = false) => {
       if (!auctionId) return;
 
       try {
-        // Gọi API lấy chi tiết sản phẩm
         const auctionRes = await axios.get(`/api/products/${auctionId}`);
         const productData = auctionRes.data;
-
-        console.log(">> Dữ liệu sản phẩm từ API:", productData);
         setAuction(productData);
 
-        // Logic tính giá gợi ý bid (Giá hiện tại + bước giá)
         const currentPrice =
           Number(productData.current_price) ||
           Number(productData.start_price) ||
@@ -86,7 +87,6 @@ export function AuctionPage({ onNavigate, auctionId }: AuctionPageProps) {
         const stepPrice = Number(productData.step_price) || 10;
         setBidAmount((currentPrice + stepPrice).toString());
 
-        // Gọi API lịch sử đấu giá (Xử lý lỗi 404 êm đẹp)
         try {
           const historyRes = await axios.get(
             `/api/products/${auctionId}/bid-history`
@@ -107,6 +107,24 @@ export function AuctionPage({ onNavigate, auctionId }: AuctionPageProps) {
     [auctionId, onNavigate]
   );
 
+  // Auto focus khi modal sẵn sàng
+  useEffect(() => {
+    if (showConfirmModal) {
+      // small delay để portal + DOM hoàn chỉnh, tránh race với animation
+      setModalReady(false);
+      const t = window.setTimeout(() => setModalReady(true), 20);
+      return () => window.clearTimeout(t);
+    } else {
+      setModalReady(false);
+    }
+  }, [showConfirmModal]);
+
+  useEffect(() => {
+    if (modalReady && confirmBtnRef.current) {
+      confirmBtnRef.current.focus();
+    }
+  }, [modalReady]);
+
   // Initial Load
   useEffect(() => {
     if (!auctionId) {
@@ -121,7 +139,7 @@ export function AuctionPage({ onNavigate, auctionId }: AuctionPageProps) {
     initData();
   }, [auctionId, onNavigate, fetchAuctionData]);
 
-  // Logic đếm ngược
+  // Countdown
   useEffect(() => {
     if (!auction?.end_at) return;
     const endTime = new Date(auction.end_at);
@@ -148,7 +166,39 @@ export function AuctionPage({ onNavigate, auctionId }: AuctionPageProps) {
     return () => clearInterval(timer);
   }, [auction?.end_at]);
 
-  // --- 3. HANDLE BID ---
+  // Disable body scroll + touch when modal open
+  useEffect(() => {
+    if (showConfirmModal) {
+      const prevOverflow = document.body.style.overflow;
+      const prevTouch = document.body.style.touchAction;
+      document.body.style.overflow = "hidden";
+      document.body.style.touchAction = "none";
+      return () => {
+        document.body.style.overflow = prevOverflow || "";
+        document.body.style.touchAction = prevTouch || "";
+      };
+    }
+    // cleanup in case
+    return () => {
+      document.body.style.overflow = "";
+      document.body.style.touchAction = "";
+    };
+  }, [showConfirmModal]);
+
+  // Close on ESC
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        setShowConfirmModal(false);
+      }
+    };
+    if (showConfirmModal) {
+      window.addEventListener("keydown", onKey);
+      return () => window.removeEventListener("keydown", onKey);
+    }
+    return;
+  }, [showConfirmModal]);
+
   const handlePlaceBid = async (e: React.MouseEvent | React.FormEvent) => {
     e.preventDefault();
     e.stopPropagation();
@@ -160,7 +210,6 @@ export function AuctionPage({ onNavigate, auctionId }: AuctionPageProps) {
     }
 
     const bidVal = parseFloat(bidAmount);
-    // Tính giá tối thiểu hợp lệ để check ngay tại Frontend
     const currentPrice = Number(auction?.current_price) || 0;
     const startPrice = Number(auction?.start_price) || 0;
     const stepPrice = Number(auction?.step_price) || 0;
@@ -179,25 +228,35 @@ export function AuctionPage({ onNavigate, auctionId }: AuctionPageProps) {
       );
       return;
     }
+    setPendingBidAmount(bidVal);
+    setShowConfirmModal(true);
+  };
+
+  const executeBid = async () => {
+    if (!pendingBidAmount) return;
+    setLoading(true);
 
     try {
       await axios.post(
         `/api/bidder/products/${auctionId}/bid`,
-        { amount: bidVal },
+        { amount: pendingBidAmount },
         { headers: { Authorization: `Bearer ${token}` } }
       );
 
       toast.success("Ra giá thành công!");
-      await fetchAuctionData(false); // Cập nhật lại giá mới ngay lập tức
+      await fetchAuctionData(false);
+      setBidAmount("");
+      setShowConfirmModal(false);
     } catch (error: any) {
       console.error("Lỗi ra giá:", error);
-      // Hiển thị lỗi chi tiết từ Backend trả về
       const msg = error.response?.data?.message || "Ra giá thất bại.";
       toast.error(msg);
+    } finally {
+      setLoading(false);
+      setShowConfirmModal(false);
     }
   };
 
-  // --- 4. HANDLE WATCHLIST (ĐÃ SỬA) ---
   const handleAddToWatchlist = async (e: React.MouseEvent) => {
     e.preventDefault();
     e.stopPropagation();
@@ -224,9 +283,7 @@ export function AuctionPage({ onNavigate, auctionId }: AuctionPageProps) {
     }
   };
 
-  // --- 5. HANDLE VIEW SELLER (ĐÃ SỬA) ---
   const handleViewSeller = () => {
-    // Kiểm tra ID người bán từ object seller hoặc field seller_id
     const sellerId = auction?.seller?.id || auction?.seller_id;
 
     if (sellerId) {
@@ -251,7 +308,6 @@ export function AuctionPage({ onNavigate, auctionId }: AuctionPageProps) {
     );
   }
 
-  // --- LOGIC HIỂN THỊ (FALLBACK) ---
   const displayImages =
     auction.images && auction.images.length > 0
       ? auction.images
@@ -265,14 +321,13 @@ export function AuctionPage({ onNavigate, auctionId }: AuctionPageProps) {
   const sellerName =
     auction.seller?.full_name || `Seller #${auction.seller_id || "Unknown"}`;
 
-  // Giá hiển thị
   const displayPrice =
     Number(auction.current_price) > 0
       ? Number(auction.current_price)
       : Number(auction.start_price);
 
   return (
-    <div className="min-h-screen bg-[#F5F5F7] py-8 px-4 sm:px-6 lg:px-8">
+    <div className="min-h-screen bg-[#F5F5F7] py-8 px-4 sm:px-6 lg:px-8 z-0">
       <div className="max-w-7xl mx-auto">
         {/* Breadcrumb */}
         <div className="flex items-center gap-2 text-sm text-gray-600 mb-6">
@@ -298,9 +353,8 @@ export function AuctionPage({ onNavigate, auctionId }: AuctionPageProps) {
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-          {/* CỘT TRÁI */}
+          {/* LEFT */}
           <div className="lg:col-span-2 space-y-6">
-            {/* Carousel Ảnh */}
             <div className="bg-white rounded-2xl shadow-sm overflow-hidden border border-gray-100">
               <Carousel className="w-full">
                 <CarouselContent>
@@ -325,7 +379,6 @@ export function AuctionPage({ onNavigate, auctionId }: AuctionPageProps) {
               </Carousel>
             </div>
 
-            {/* Thông tin chi tiết */}
             <div className="bg-white rounded-2xl shadow-sm p-6 border border-gray-100">
               <h1 className="text-3xl font-bold text-gray-900 mb-4">
                 {auction.name}
@@ -368,7 +421,6 @@ export function AuctionPage({ onNavigate, auctionId }: AuctionPageProps) {
               </div>
             </div>
 
-            {/* Lịch sử đấu giá */}
             <div className="bg-white rounded-2xl shadow-sm p-6 border border-gray-100">
               <h3 className="text-xl font-bold text-gray-900 mb-4">
                 Bid History
@@ -407,7 +459,7 @@ export function AuctionPage({ onNavigate, auctionId }: AuctionPageProps) {
             </div>
           </div>
 
-          {/* CỘT PHẢI - PANEL ĐẶT GIÁ */}
+          {/* RIGHT - BID PANEL */}
           <div className="space-y-6">
             <div className="bg-white rounded-2xl shadow-sm p-6 sticky top-24 border border-gray-100">
               <div className="mb-6">
@@ -449,7 +501,6 @@ export function AuctionPage({ onNavigate, auctionId }: AuctionPageProps) {
                   Place Bid
                 </Button>
 
-                {/* NÚT WATCHLIST ĐÃ ĐƯỢC GẮN HÀM XỬ LÝ */}
                 <Button
                   type="button"
                   variant="outline"
@@ -468,7 +519,6 @@ export function AuctionPage({ onNavigate, auctionId }: AuctionPageProps) {
               </div>
             </div>
 
-            {/* Thông tin người bán */}
             <div className="bg-white rounded-2xl shadow-sm p-6 border border-gray-100">
               <h3 className="font-semibold text-gray-900 mb-4">
                 Seller Information
@@ -489,7 +539,6 @@ export function AuctionPage({ onNavigate, auctionId }: AuctionPageProps) {
                 </div>
               </div>
 
-              {/* NÚT VIEW SELLER ĐÃ ĐƯỢC GẮN HÀM XỬ LÝ */}
               <Button
                 type="button"
                 variant="outline"
@@ -502,6 +551,95 @@ export function AuctionPage({ onNavigate, auctionId }: AuctionPageProps) {
           </div>
         </div>
       </div>
+
+      {/* Modal Portal */}
+      {showConfirmModal &&
+        (typeof document !== "undefined"
+          ? createPortal(
+              <div
+                className="fixed inset-0 z-[9999] flex items-center justify-center p-4"
+                aria-modal="true"
+                role="dialog"
+                style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0 }}
+              >
+                {/* Overlay */}
+                <div
+                  className="absolute inset-0 bg-black/60 backdrop-blur-sm transition-opacity"
+                  onClick={() => setShowConfirmModal(false)}
+                  style={{ zIndex: 0 }}
+                />
+
+                {/* Modal box */}
+                <div
+                  onClick={(e) => e.stopPropagation()}
+                  className={`relative bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden transition-all duration-200 ${
+                    modalReady ? "opacity-100 scale-100 z-10" : "opacity-0 scale-95 z-10"
+                  }`}
+                  style={{ transformOrigin: "center" }}
+                >
+                  {/* Header */}
+                  <div className="bg-white px-6 py-6 border-b border-gray-100 flex items-center gap-4">
+                    <div className="w-12 h-12 bg-blue-50 rounded-full flex items-center justify-center flex-shrink-0">
+                      <AlertTriangle className="h-6 w-6 text-[#0A84FF]" />
+                    </div>
+                    <div>
+                      <h3 className="text-lg font-bold text-gray-900">Xác nhận ra giá</h3>
+                      <p className="text-sm text-gray-500">Hãy kiểm tra kỹ thông tin trước khi đặt.</p>
+                    </div>
+                    <button
+                      onClick={() => setShowConfirmModal(false)}
+                      className="absolute top-4 right-4 text-gray-400 hover:text-gray-600 transition-colors"
+                      aria-label="Close"
+                    >
+                      <X className="h-5 w-5" />
+                    </button>
+                  </div>
+
+                  {/* Content */}
+                  <div className="px-6 py-6 space-y-4">
+                    <div className="bg-gray-50 p-4 rounded-xl flex justify-between items-center border border-gray-100">
+                      <span className="text-gray-600 font-medium">Sản phẩm</span>
+                      <span className="text-gray-900 font-bold truncate max-w-[150px]">
+                        {auction.name}
+                      </span>
+                    </div>
+
+                    <div className="bg-[#0A84FF]/5 p-4 rounded-xl flex justify-between items-center border border-[#0A84FF]/20">
+                      <span className="text-[#0A84FF] font-medium">Giá bạn đặt</span>
+                      <span className="text-2xl font-bold text-[#0A84FF]">
+                        ${pendingBidAmount?.toLocaleString()}
+                      </span>
+                    </div>
+
+                    <p className="text-xs text-center text-gray-500 mt-2">
+                      Bằng việc chọn "Xác nhận ra giá", bạn cam kết mua sản phẩm này nếu thắng đấu giá.
+                    </p>
+                  </div>
+
+                  {/* Footer */}
+                  <div className="px-6 py-4 bg-gray-50 flex gap-3 justify-end">
+                    <Button
+                      variant="outline"
+                      onClick={() => setShowConfirmModal(false)}
+                      className="font-medium border-gray-200 hover:bg-white hover:text-gray-900"
+                    >
+                      Hủy bỏ
+                    </Button>
+
+                    <button
+                      ref={confirmBtnRef}
+                      onClick={executeBid}
+                      disabled={loading}
+                      className="bg-[#0A84FF] hover:bg-[#0A84FF]/90 font-bold px-6 py-2 rounded-md shadow-lg shadow-blue-500/20 disabled:opacity-60"
+                    >
+                      {loading ? "Đang xử lý..." : "Xác nhận ra giá"}
+                    </button>
+                  </div>
+                </div>
+              </div>,
+              document.body
+            )
+          : null)}
     </div>
   );
 }

@@ -50,6 +50,30 @@ export const placeBid = async (
       }
     }
 
+    const userRes = await client.query(
+      `SELECT rating_plus, rating_minus FROM Users WHERE id = $1`,
+      [bidderId]
+    );
+
+    const userInfo = userRes.rows[0];
+    const plus = userInfo.rating_plus || 0;
+    const minus = userInfo.rating_minus || 0;
+    const total = plus + minus;
+
+    if (total > 0){
+      if (plus / total < 0.8){
+        throw new Error("Tỷ lệ đánh giá tích cực của bạn quá thấp, không thể tham gia đấu giá.");
+      }
+    }else{
+      if (!product.allow_new_bidders){
+        throw new Error("Người dùng mới không được phép tham gia đấu giá sản phẩm này.");
+      }
+    }
+   
+
+
+
+
     const step = Number(product.step_price);
     const currentPrice = Number(product.current_price);
     const startPrice = Number(product.start_price);

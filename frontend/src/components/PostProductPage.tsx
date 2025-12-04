@@ -39,6 +39,7 @@ export function PostProductPage({ onNavigate }: PostProductPageProps) {
           .split(",")
           .map((url: string) => url.trim())
           .filter((url: string) => url !== ""),
+        allow_new_bidders: data.allow_new_bidders, // Mặc định cho phép người dùng mới đấu giá
       };
 
       await axios.post("/api/seller/products", payload, {
@@ -156,6 +157,28 @@ export function PostProductPage({ onNavigate }: PostProductPageProps) {
                   Copy link ảnh từ Google/Unsplash rồi dán vào đây.
                 </p>
               </div>
+              
+              <div className="flex items-center space-x-2 border p-4 rounded-lg bg-gray-50">
+                <input 
+                  type="checkbox" 
+                  id="allow_new_bidders"
+                  className="w-5 h-5 text-blue-600 rounded focus:ring-blue-500 border-gray-300"
+                  {...register("allow_new_bidders")} // Đăng ký với react-hook-form
+                  defaultChecked={true} // Mặc định nên để true (cho phép)
+                />
+                <div className="grid gap-1.5 leading-none">
+                  <Label 
+                    htmlFor="allow_new_bidders" 
+                    className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
+                  >
+                    Cho phép người mua mới (chưa có đánh giá) tham gia đấu giá?
+                  </Label>
+                  <p className="text-sm text-gray-500">
+                    Nếu bỏ chọn, chỉ những người có điểm uy tín {'>'} 80% mới được ra giá.
+                  </p>
+                </div>
+              </div>
+
 
               <Button
                 type="submit"

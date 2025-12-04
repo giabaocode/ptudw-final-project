@@ -130,6 +130,10 @@ export function ProductCard({
           <Button
             size="sm"
             className="bg-[#0A84FF] hover:bg-[#0A84FF]/90 h-8 px-3"
+            onClick={(e : any) => {
+              e.stopPropagation();
+              onViewDetails(id);
+            }}
           >
             <ShoppingCart className="h-4 w-4 mr-1" />
             Bid
