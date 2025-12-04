@@ -80,3 +80,61 @@ export const getUserById = async (id: number) => {
   }
   return result.rows[0];
 };
+
+export const updateProfile = async (userId: number, data: any) => {
+    const { full_name, email, dob, address } = data;
+    const client = await pool.connect();
+    try {
+        // Nếu đổi email, phải check trùng
+        if (email) {
+            const check = await client.query(`SELECT id FROM Users WHERE email = $1 AND id != $2`, [email, userId]);
+            if (check.rows.length > 0) throw new Error("Email này đã được sử dụng bởi người khác.");
+        }
+
+        await client.query(
+            `UPDATE Users SET full_name = COALESCE($1, full_name), 
+                              email = COALESCE($2, email), 
+                              dob = COALESCE($3, dob),
+                              address = COALESCE($4, address) 
+             WHERE id = $5`,
+            [full_name, email, dob, address, userId]
+        );
+        return { success: true, message: "Cập nhật hồ sơ thành công" };
+    } finally {
+        client.release();
+    }
+};
+
+// 2. Đổi mật khẩu (Check mật khẩu cũ)
+export const changePassword = async (userId: number, oldPass: string, newPass: string) => {
+    const userRes = await pool.query(`SELECT password_hash FROM Users WHERE id = $1`, [userId]);
+    const user = userRes.rows[0];
+
+    const isMatch = await bcrypt.compare(oldPass, user.password_hash);
+    if (!isMatch) throw new Error("Mật khẩu cũ không chính xác.");
+
+    const salt = await bcrypt.genSalt(10);
+    const newHash = await bcrypt.hash(newPass, salt);
+
+    await pool.query(`UPDATE Users SET password_hash = $1 WHERE id = $2`, [newHash, userId]);
+    return { success: true, message: "Đổi mật khẩu thành công." };
+};
+
+// 3. Xem điểm đánh giá & nhận xét từ người khác
+export const getMyRatings = async (userId: number) => {
+    const res = await pool.query(`
+        SELECT r.*, u.full_name as rater_name 
+        FROM Ratings r
+        JOIN Users u ON r.rater_id = u.id
+        WHERE r.rated_user_id = $1
+        ORDER BY r.created_at DESC
+    `, [userId]);
+    
+    // Lấy tổng điểm
+    const scoreRes = await pool.query(`SELECT rating_plus, rating_minus FROM Users WHERE id = $1`, [userId]);
+    
+    return {
+        scores: scoreRes.rows[0],
+        reviews: res.rows
+    };
+};

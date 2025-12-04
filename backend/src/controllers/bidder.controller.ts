@@ -63,3 +63,52 @@ export const getMyBids = async (req: Request, res: Response) => {
     res.status(500).json({ message: error.message });
   }
 };
+
+export const requestUpgrade = async (req: Request, res: Response) => {
+    try {
+        const userId = (req as any).user.id;
+        const { reason } = req.body;
+        const result = await bidderService.requestUpgrade(userId, reason);
+        res.json(result);
+    } catch (error: any) {
+        res.status(400).json({ message: error.message });
+    }
+};
+
+// Thêm các hàm này
+export const getWonList = async (req: Request, res: Response) => {
+    try {
+        const userId = (req as any).user.id;
+        const result = await bidderService.getWonAuctions(userId);
+        res.json(result);
+    } catch (error: any) {
+        res.status(500).json({ message: error.message });
+    }
+};
+
+export const rateUser = async (req: Request, res: Response) => {
+    try {
+        const userId = (req as any).user.id;
+        const productId = parseInt(req.params.id);
+        const { score, comment } = req.body; // score: 'positive' | 'negative'
+        const result = await bidderService.rateSeller(userId, productId, score, comment);
+        res.json(result);
+    } catch (error: any) {
+        res.status(400).json({ message: error.message });
+    }
+};
+
+export const postQuestion = async (req: Request, res: Response) => {
+    try {
+        const userId = (req as any).user.id;
+        const productId = parseInt(req.params.id);
+        const { question } = req.body;
+        
+        // Gọi hàm askQuestion bên service tại đây
+        const result = await bidderService.askQuestion(userId, productId, question);
+        
+        res.json(result);
+    } catch (error: any) {
+        res.status(400).json({ message: error.message });
+    }
+};

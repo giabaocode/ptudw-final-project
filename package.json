@@ -4,7 +4,9 @@
     "@types/react-dom": "^19.2.3"
   },
   "dependencies": {
+    "@types/nodemailer": "^7.0.4",
     "axios": "^1.13.2",
+    "nodemailer": "^7.0.11",
     "pg": "^8.16.3"
   }
 }

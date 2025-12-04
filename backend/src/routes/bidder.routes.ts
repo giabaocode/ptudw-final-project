@@ -1,6 +1,11 @@
 import { Router } from "express";
 import { placeBid, getWatchlist, getMyBids, addToWatchlist } from "../controllers/bidder.controller";
 import { authenticateToken } from "../utils/auth";
+// Thêm route
+import { requestUpgrade } from "../controllers/bidder.controller";
+import { getWonList, rateUser } from '../controllers/bidder.controller';
+
+// ...
 
 const router = Router();
 
@@ -13,5 +18,10 @@ router.post("/products/:id/watchlist", authenticateToken, addToWatchlist); // <-
 
 // Route xem bid của tôi
 router.get("/my-bids", authenticateToken, getMyBids);
+router.post("/upgrade-request", authenticateToken, requestUpgrade);
+router.get('/won-auctions', authenticateToken, getWonList);
+router.post('/products/:id/rate', authenticateToken, rateUser);
+
+
 
 export default router;

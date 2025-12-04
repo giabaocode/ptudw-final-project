@@ -35,3 +35,35 @@ export const getMe = async (req: Request, res: Response) => {
     res.status(404).json({ message: error.message });
   }
 };
+
+// Thêm các hàm này vào file
+export const updateProfile = async (req: Request, res: Response) => {
+    try {
+        const userId = (req as any).user.id;
+        const result = await authService.updateProfile(userId, req.body);
+        res.json(result);
+    } catch (error: any) {
+        res.status(400).json({ message: error.message });
+    }
+};
+
+export const changePassword = async (req: Request, res: Response) => {
+    try {
+        const userId = (req as any).user.id;
+        const { oldPass, newPass } = req.body;
+        const result = await authService.changePassword(userId, oldPass, newPass);
+        res.json(result);
+    } catch (error: any) {
+        res.status(400).json({ message: error.message });
+    }
+};
+
+export const getMyRatings = async (req: Request, res: Response) => {
+    try {
+        const userId = (req as any).user.id;
+        const result = await authService.getMyRatings(userId);
+        res.json(result);
+    } catch (error: any) {
+        res.status(500).json({ message: error.message });
+    }
+};
