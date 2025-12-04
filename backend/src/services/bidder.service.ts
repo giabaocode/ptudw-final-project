@@ -205,16 +205,24 @@ export const getMyWatchList = async (userId: number) => {
 };
 
 // Đây là hàm bị thiếu khiến Controller báo lỗi
+// Hàm lấy danh sách sản phẩm mình đang đấu giá
 export const getMyBid = async (userId: number) => {
   const res = await pool.query(
-    `SELECT DISTINCT p.*, b.amount as my_bid_amount,
-        (SELECT image_url FROM Product_Images WHERE product_id = p.id AND is_thumbnail = TRUE LIMIT 1) AS image
-        FROM Bids b
-        JOIN Products p ON b.product_id = p.id
-        WHERE b.bidder_id = $1
-        ORDER BY b.created_at DESC`,
+    `
+    SELECT p.*, 
+           -- Lấy ảnh đại diện (nếu không có is_thumbnail thì lấy ảnh đầu tiên)
+           (SELECT image_url FROM Product_Images WHERE product_id = p.id ORDER BY id ASC LIMIT 1) AS image,
+           -- Lấy thời gian bid gần nhất của user vào sản phẩm này để sắp xếp
+           MAX(b.created_at) as last_bid_time
+    FROM Bids b
+    JOIN Products p ON b.product_id = p.id
+    WHERE b.bidder_id = $1
+    GROUP BY p.id
+    ORDER BY last_bid_time DESC
+    `,
     [userId]
   );
+
   return res.rows;
 };
 
