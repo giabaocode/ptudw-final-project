@@ -60,6 +60,7 @@ const AppContent = () => {
             onNavigate={handleNavigate}
             categoryId={categoryId}
             searchQuery={searchQuery}
+            onSearch={handleSearch}
           />
         );
       case "login":
