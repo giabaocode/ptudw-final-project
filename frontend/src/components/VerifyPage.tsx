@@ -2,7 +2,7 @@ import { useState, useEffect } from "react";
 import { Input } from "./ui/input";
 import { Button } from "./ui/button";
 import { Label } from "./ui/label";
-import { Mail, ArrowRight, Loader2 } from "lucide-react";
+import { Mail, ArrowRight, Loader2, RefreshCw } from "lucide-react";
 import axios from "axios";
 import { toast } from "sonner";
 
@@ -15,6 +15,8 @@ export function VerifyPage({ onNavigate }: VerifyPageProps) {
   const [email, setEmail] = useState("");
   const [otp, setOtp] = useState("");
   const [loading, setLoading] = useState(false);
+  // State mới cho nút gửi lại
+  const [resending, setResending] = useState(false);
 
   useEffect(() => {
     const storedEmail = localStorage.getItem("registrationEmail");
@@ -56,6 +58,20 @@ export function VerifyPage({ onNavigate }: VerifyPageProps) {
       setLoading(false);
     }
   };
+  // --- [HÀM XỬ LÝ GỬI LẠI MÃ] ---
+  const handleResendOtp = async () => {
+    if (resending) return;
+    setResending(true);
+    try {
+      await axios.post("/api/auth/resend-otp", { email });
+      toast.success("Đã gửi lại mã OTP mới. Vui lòng kiểm tra email.");
+    } catch (error: any) {
+      toast.error(error.response?.data?.message || "Không thể gửi lại mã.");
+    } finally {
+      setResending(false);
+    }
+  };
+  // -----------------------------
 
   return (
     <div className="min-h-screen bg-[#F5F5F7] flex items-center justify-center px-4">
@@ -106,12 +122,20 @@ export function VerifyPage({ onNavigate }: VerifyPageProps) {
 
         <div className="mt-8 text-center border-t pt-6 border-gray-100">
           <p className="text-sm text-gray-500 mb-2">Không nhận được mã?</p>
+          {/* NÚT GỬI LẠI MÃ */}
           <button
-            onClick={() => toast.info("Chức năng gửi lại đang phát triển...")}
-            className="text-[#0A84FF] hover:underline font-medium text-sm"
+            onClick={handleResendOtp}
+            disabled={resending}
+            className="text-[#0A84FF] hover:underline font-medium text-sm flex items-center justify-center gap-2 mx-auto disabled:opacity-50"
           >
-            Gửi lại mã
+            {resending ? (
+              <Loader2 className="w-4 h-4 animate-spin" />
+            ) : (
+              <RefreshCw className="w-4 h-4" />
+            )}
+            {resending ? "Đang gửi..." : "Gửi lại mã"}
           </button>
+          {/* -------------- */}
           <div className="mt-4">
             <button
               onClick={() => onNavigate("login")}

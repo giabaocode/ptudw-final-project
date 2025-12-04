@@ -76,7 +76,10 @@ export function SignupPage({ onNavigate }: SignupPageProps) {
 
       await axios.post("/api/auth/register", payload);
 
-      toast.success("Đăng ký thành công! Vui lòng xác thực email.");
+      // --- [SỬA TẠI ĐÂY] ---
+      // Thay vì báo thành công, chỉ báo đã gửi mã
+      toast.info("Mã xác thực đã được gửi đến email của bạn.");
+      // ---------------------
 
       // --- [SỬA ĐOẠN NÀY] ---
       // 1. Lưu email để trang Verify biết là đang xác thực cho ai
@@ -85,7 +88,6 @@ export function SignupPage({ onNavigate }: SignupPageProps) {
       // 2. Chuyển hướng sang trang Verify (thay vì login)
       onNavigate("verify");
       // ---------------------
-      toast.success("Đăng ký thành công! Vui lòng đăng nhập.");
     } catch (error: any) {
       console.error("Signup failed:", error);
       const errorMessage = error.response?.data?.message || "Đăng ký thất bại.";

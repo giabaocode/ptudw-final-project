@@ -15,7 +15,8 @@ import { Toaster } from "./components/ui/sonner";
 import { AuthProvider, useAuth } from "./context/AuthContext";
 import { SellerProfilePage } from "./components/SellerProfilePage";
 import { VerifyPage } from "./components/VerifyPage";
-
+import { ForgotPasswordPage } from "./components/ForgotPasswordPage";
+import { ResetPasswordPage } from "./components/ResetPasswordPage";
 // Component Wrapper để lấy AuthContext trong App
 const AppContent = () => {
   const [currentPage, setCurrentPage] = useState("landing");
@@ -74,6 +75,10 @@ const AppContent = () => {
         ) : (
           <LoginPage onNavigate={handleNavigate} />
         );
+      case "forgot-password":
+        return <ForgotPasswordPage onNavigate={handleNavigate} />;
+      case "reset-password":
+        return <ResetPasswordPage onNavigate={handleNavigate} />;
       case "profile":
         return isLoggedIn ? (
           <ProfilePage onNavigate={handleNavigate} />

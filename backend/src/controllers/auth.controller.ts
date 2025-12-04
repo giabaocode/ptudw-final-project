@@ -47,3 +47,50 @@ export const verifyOtp = async (req: Request, res: Response) => {
     res.status(400).json({ message: error.message });
   }
 };
+// --- [THÊM MỚI] ---
+export const resendOtp = async (req: Request, res: Response) => {
+  try {
+    const { email } = req.body;
+    if (!email) throw new Error("Email là bắt buộc.");
+
+    const result = await authService.resendOtp(email);
+    res.json(result);
+  } catch (error: any) {
+    res.status(400).json({ message: error.message });
+  }
+};
+// ------------------
+export const forgotPassword = async (req: Request, res: Response) => {
+  try {
+    const { email } = req.body;
+    if (!email) throw new Error("Vui lòng nhập email.");
+
+    const result = await authService.requestPasswordReset(email);
+    res.json(result);
+  } catch (error: any) {
+    res.status(400).json({ message: error.message });
+  }
+};
+
+export const resetPassword = async (req: Request, res: Response) => {
+  try {
+    const { email, otp, newPassword } = req.body;
+    if (!email || !otp || !newPassword) throw new Error("Thiếu thông tin.");
+
+    const result = await authService.resetPassword(email, otp, newPassword);
+    res.json(result);
+  } catch (error: any) {
+    res.status(400).json({ message: error.message });
+  }
+};
+export const verifyResetOtp = async (req: Request, res: Response) => {
+  try {
+    const { email, otp } = req.body;
+    if (!email || !otp) throw new Error("Thiếu thông tin.");
+
+    await authService.verifyResetOtp(email, otp);
+    res.json({ message: "OTP hợp lệ." });
+  } catch (error: any) {
+    res.status(400).json({ message: error.message });
+  }
+};

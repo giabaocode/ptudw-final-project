@@ -104,6 +104,8 @@ export function LoginPage({ onNavigate }: LoginPageProps) {
               </div>
               <button
                 type="button"
+                // Sửa dòng này
+                onClick={() => onNavigate("forgot-password")}
                 className="text-sm text-[#0A84FF] hover:underline font-medium"
               >
                 Forgot password?
