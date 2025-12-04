@@ -11,6 +11,9 @@ import {
   Send,
   ChevronLeft,
   ChevronRight,
+  ShieldCheck,
+  Flag,
+  Trophy, // Icon Cúp cho người thắng
 } from "lucide-react";
 import { Button } from "./ui/button";
 import { Input } from "./ui/input";
@@ -19,6 +22,13 @@ import { ImageWithFallback } from "./figma/ImageWithFallback";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "./ui/tabs";
 import { ProductCard } from "./ProductCard";
 import { HoverCard, HoverCardContent, HoverCardTrigger } from "./ui/hover-card";
+import {
+  Carousel,
+  CarouselContent,
+  CarouselItem,
+  CarouselNext,
+  CarouselPrevious,
+} from "./ui/carousel";
 import { useState, useEffect, useCallback } from "react";
 import axios from "axios";
 import { Auction, Product } from "../types";
@@ -140,6 +150,8 @@ export function AuctionPage({ onNavigate, auctionId }: AuctionPageProps) {
   const [loading, setLoading] = useState(true);
 
   const [activeImage, setActiveImage] = useState<string>("");
+  const [activeImageIndex, setActiveImageIndex] = useState(0);
+
   const [bidAmount, setBidAmount] = useState("");
   const [questionText, setQuestionText] = useState("");
   const [watchlistLoading, setWatchlistLoading] = useState(false);
@@ -157,8 +169,10 @@ export function AuctionPage({ onNavigate, auctionId }: AuctionPageProps) {
     try {
       const res = await axios.get(`/api/products/${auctionId}`);
       setAuction(res.data);
-      if (res.data.images && res.data.images.length > 0)
+      if (res.data.images && res.data.images.length > 0) {
         setActiveImage(res.data.images[0]);
+        setActiveImageIndex(0);
+      }
 
       const currentPrice =
         Number(res.data.current_price) || Number(res.data.start_price) || 0;
@@ -205,6 +219,21 @@ export function AuctionPage({ onNavigate, auctionId }: AuctionPageProps) {
     fetchAuctionData();
   }, [fetchAuctionData]);
 
+  // Image Navigation
+  const handleNextImage = () => {
+    if (!auction?.images) return;
+    const nextIndex = (activeImageIndex + 1) % auction.images.length;
+    setActiveImage(auction.images[nextIndex]);
+    setActiveImageIndex(nextIndex);
+  };
+  const handlePrevImage = () => {
+    if (!auction?.images) return;
+    const prevIndex =
+      (activeImageIndex - 1 + auction.images.length) % auction.images.length;
+    setActiveImage(auction.images[prevIndex]);
+    setActiveImageIndex(prevIndex);
+  };
+
   const handlePlaceBid = async () => {
     if (!isLoggedIn) return toast.error("Vui lòng đăng nhập");
     try {
@@ -223,12 +252,9 @@ export function AuctionPage({ onNavigate, auctionId }: AuctionPageProps) {
   const handlePostQuestion = async () => {
     if (!isLoggedIn) return toast.error("Vui lòng đăng nhập để hỏi");
     if (!questionText.trim()) return;
+    if (isPostingQuestion) return;
 
-    // --- [LOGIC CHẶN SPAM ENTER] ---
-    if (isPostingQuestion) return; // Nếu đang gửi thì dừng ngay, không làm gì cả
-    setIsPostingQuestion(true); // Khóa lại
-    // -------------------------------
-
+    setIsPostingQuestion(true);
     try {
       await axios.post(
         `/api/bidder/products/${auctionId}/questions`,
@@ -243,7 +269,6 @@ export function AuctionPage({ onNavigate, auctionId }: AuctionPageProps) {
     } catch (e) {
       toast.error("Lỗi gửi câu hỏi");
     } finally {
-      // Mở khóa dù thành công hay thất bại
       setIsPostingQuestion(false);
     }
   };
@@ -285,6 +310,12 @@ export function AuctionPage({ onNavigate, auctionId }: AuctionPageProps) {
       ? Number(auction.current_price)
       : Number(auction.start_price);
 
+  // Lấy tên người giữ giá (ưu tiên current_highest_bidder object, fallback về bidder_name)
+  const highestBidderName =
+    auction.current_highest_bidder?.full_name ||
+    auction.bidder_name ||
+    "Chưa có";
+
   return (
     <div className="min-h-screen bg-[#FAFAFA] py-8 px-4 sm:px-6 lg:px-8 font-sans">
       <div className="max-w-7xl mx-auto">
@@ -294,6 +325,13 @@ export function AuctionPage({ onNavigate, auctionId }: AuctionPageProps) {
             onClick={() => onNavigate("landing")}
           >
             Home
+          </span>
+          <span>/</span>
+          <span
+            className="cursor-pointer hover:text-blue-600"
+            onClick={() => onNavigate("categories", auction.category_id)}
+          >
+            {auction.category || "Danh mục"}
           </span>
           <span>/</span>
           <span className="text-gray-900 font-medium truncate max-w-[300px]">
@@ -311,12 +349,12 @@ export function AuctionPage({ onNavigate, auctionId }: AuctionPageProps) {
               />
             </div>
             {auction.images && auction.images.length > 1 && (
-              <div className="flex gap-3 mt-4 overflow-x-auto pb-2">
+              <div className="flex mt-4 overflow-x-auto pb-2">
                 {auction.images.map((img, idx) => (
                   <button
                     key={idx}
                     onClick={() => setActiveImage(img)}
-                    className={`w-20 h-20 rounded-lg border-2 transition-all ${
+                    className={`w-full rounded-lg border-2 transition-all ${
                       activeImage === img
                         ? "border-blue-500"
                         : "border-transparent opacity-70 hover:opacity-100"
@@ -335,24 +373,27 @@ export function AuctionPage({ onNavigate, auctionId }: AuctionPageProps) {
               <h1 className="text-3xl font-bold text-gray-900 mb-3">
                 {auction.name}
               </h1>
-              <div className="flex flex-wrap items-center gap-3 mb-6">
-                <Badge className="bg-[#FFD700] text-black hover:bg-[#E5C100] px-3 py-1">
-                  <Clock className="w-3.5 h-3.5 mr-1.5" />{" "}
-                  {formatRelativeTime(auction.end_at)}
-                </Badge>
-                <Badge
-                  variant="outline"
-                  className="border-gray-300 text-gray-600 px-3 py-1"
+              <div className="flex flex-wrap items-center gap-4 text-sm text-gray-500 mb-6">
+                <div className="flex items-center gap-1 text-yellow-500">
+                  <Star className="w-4 h-4 fill-current" />
+                  <span className="text-black font-medium">5.0</span>
+                </div>
+                <span className="w-1 h-1 bg-gray-300 rounded-full"></span>
+
+                {/* --- [MỚI] HIỂN THỊ THỜI ĐIỂM ĐĂNG --- */}
+                <span
+                  className="flex items-center gap-1"
+                  title={new Date(auction.created_at).toLocaleString()}
                 >
-                  <TrendingUp className="w-3.5 h-3.5 mr-1.5" />{" "}
-                  {auction.bid_count} bids
-                </Badge>
-                <Badge
-                  variant="outline"
-                  className="border-gray-300 text-gray-600 px-3 py-1"
-                >
-                  {auction.category}
-                </Badge>
+                  <Calendar className="w-4 h-4" />
+                  Đăng: {format(new Date(auction.created_at), "dd/MM/yyyy")}
+                </span>
+                {/* ------------------------------------ */}
+
+                <span className="w-1 h-1 bg-gray-300 rounded-full"></span>
+                <span className="flex items-center gap-1 text-green-600">
+                  <ShieldCheck className="w-4 h-4" /> Chính hãng
+                </span>
               </div>
 
               <Tabs defaultValue="description" className="mt-8">
@@ -429,20 +470,19 @@ export function AuctionPage({ onNavigate, auctionId }: AuctionPageProps) {
                     <div className="bg-white p-5 rounded-2xl border border-gray-200 shadow-sm flex items-center gap-3 mb-8">
                       <div className="flex-1 relative">
                         <Input
-                          className="h-12 pl-4 pr-4 py-3 w-full text-base  focus:border-blue-500 focus:ring-blue-500 bg-gray-50/50 rounded-xl"
+                          className="h-12 pl-4 pr-4 py-3 w-full text-base focus:border-blue-500 focus:ring-blue-500 bg-gray-50/50 rounded-xl"
                           placeholder={
                             isLoggedIn
                               ? "Nhập câu hỏi của bạn..."
                               : "Đăng nhập để đặt câu hỏi"
                           }
-                          disabled={!isLoggedIn || isPostingQuestion} // Disable input khi đang gửi
+                          disabled={!isLoggedIn || isPostingQuestion}
                           value={questionText}
                           onChange={(e) => setQuestionText(e.target.value)}
-                          // --- [SỰ KIỆN ENTER] ---
                           onKeyDown={(e) => {
                             if (e.key === "Enter" && !e.shiftKey) {
-                              e.preventDefault(); // Chặn xuống dòng
-                              handlePostQuestion(); // Gửi ngay
+                              e.preventDefault();
+                              handlePostQuestion();
                             }
                           }}
                         />
@@ -568,19 +608,60 @@ export function AuctionPage({ onNavigate, auctionId }: AuctionPageProps) {
           <div className="lg:col-span-1 space-y-6">
             <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100 sticky top-24">
               <p className="text-sm text-gray-500 font-medium mb-1">
-                Current Bid
+                Giá hiện tại (Current Bid)
               </p>
               <div className="flex items-baseline gap-1">
                 <span className="text-3xl font-bold text-[#0A84FF]">
                   ${displayPrice.toLocaleString()}
                 </span>
               </div>
-              <p className="text-xs text-gray-500 mt-2">
-                Bước giá:{" "}
-                <span className="font-bold text-gray-900">
-                  ${(auction.step_price || 0).toLocaleString()}
-                </span>
-              </p>
+
+              {/* --- [MỚI] HIỂN THỊ GIÁ MUA NGAY --- */}
+              {auction.buy_now_price && (
+                <div className="mt-3 flex items-center gap-2 text-red-600 bg-red-50 px-3 py-2 rounded-lg border border-red-100">
+                  <Tag className="w-4 h-4" />
+                  <span className="text-sm font-bold">
+                    Mua ngay: ${Number(auction.buy_now_price).toLocaleString()}
+                  </span>
+                </div>
+              )}
+              {/* ----------------------------------- */}
+
+              {/* --- [MỚI] THÔNG TIN NGƯỜI GIỮ GIÁ CAO NHẤT --- */}
+              <div className="mt-4 p-3 bg-blue-50 rounded-xl border border-blue-100 flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <div className="w-8 h-8 bg-blue-200 rounded-full flex items-center justify-center text-blue-700 font-bold text-xs">
+                    {highestBidderName.charAt(0)}
+                  </div>
+                  <div>
+                    <p className="text-[10px] text-gray-500 uppercase font-bold">
+                      Người thắng hiện tại
+                    </p>
+                    <p
+                      className="font-bold text-blue-900 text-sm truncate max-w-[120px]"
+                      title={highestBidderName}
+                    >
+                      {highestBidderName}
+                    </p>
+                  </div>
+                </div>
+                <Trophy className="w-5 h-5 text-yellow-500" />
+              </div>
+              {/* --------------------------------------------- */}
+
+              <div className="flex flex-wrap gap-3 mt-4">
+                <Badge className="bg-[#FFD700] text-black hover:bg-[#E5C100] px-3 py-1">
+                  <Clock className="w-3.5 h-3.5 mr-1.5" />{" "}
+                  {formatRelativeTime(auction.end_at)}
+                </Badge>
+                <Badge
+                  variant="outline"
+                  className="border-blue-200 text-blue-700 bg-blue-50 px-3 py-1"
+                >
+                  Bước giá: ${(auction.step_price || 0).toLocaleString()}
+                </Badge>
+              </div>
+
               <div className="space-y-3 mt-6">
                 <Input
                   type="number"
@@ -695,6 +776,8 @@ export function AuctionPage({ onNavigate, auctionId }: AuctionPageProps) {
                   buyNowPrice={rel.buy_now_price}
                   createdAt={rel.created_at}
                   onViewDetails={(id) => onNavigate("auction", id)}
+                  categoryId={rel.category_id}
+                  onCategoryClick={(id) => onNavigate("categories", id)}
                 />
               ))}
             </div>

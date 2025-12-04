@@ -27,6 +27,15 @@ const pool = new Pool({
   connectionTimeoutMillis: 2000,
   // ---------------------------------------------
 });
+// --- [ĐOẠN CODE CỨU MẠNG] ---
+// Bắt lỗi kết nối ngầm để tránh sập App (Crash)
+pool.on("error", (err, client) => {
+  console.error(
+    "⚠️ Lỗi kết nối Database đột ngột (Idle client error):",
+    err.message
+  );
+  // Không throw error ở đây để server vẫn sống
+});
 
 // Kiểm tra kết nối
 (async () => {
