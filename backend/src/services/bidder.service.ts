@@ -217,3 +217,17 @@ export const getMyBid = async (userId: number) => {
   );
   return res.rows;
 };
+
+// --- [THÊM MỚI] ---
+export const postQuestion = async (
+  userId: number,
+  productId: number,
+  text: string
+) => {
+  await pool.query(
+    `INSERT INTO Product_Questions (product_id, user_id, question_text) VALUES ($1, $2, $3)`,
+    [productId, userId, text]
+  );
+  return { message: "Đã gửi câu hỏi thành công!" };
+};
+// ------------------

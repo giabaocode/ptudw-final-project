@@ -104,3 +104,27 @@ export const getBidHistory = async (req: Request, res: Response) => {
     res.status(500).json({ message: error.message });
   }
 };
+
+// ... (Import cũ)
+
+// --- [THÊM MỚI] ---
+export const getQuestions = async (req: Request, res: Response) => {
+  try {
+    const productId = parseInt(req.params.id);
+    const questions = await publicService.getProductQuestions(productId);
+    res.json(questions);
+  } catch (error: any) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
+export const getSellerReviews = async (req: Request, res: Response) => {
+  try {
+    const sellerId = parseInt(req.params.id);
+    const reviews = await publicService.getSellerReviews(sellerId);
+    res.json(reviews);
+  } catch (error: any) {
+    res.status(500).json({ message: error.message });
+  }
+};
+// ------------------

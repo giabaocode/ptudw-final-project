@@ -6,9 +6,14 @@ export const placeBid = async (req: Request, res: Response) => {
     const userId = (req as any).user.id;
     const productId = parseInt(req.params.id);
     // Nhận thêm max_amount cho tính năng Auto Bid
-    const { amount, max_amount } = req.body; 
+    const { amount, max_amount } = req.body;
 
-    const result = await bidderService.placeBid(userId, productId, amount, max_amount);
+    const result = await bidderService.placeBid(
+      userId,
+      productId,
+      amount,
+      max_amount
+    );
     res.json(result);
   } catch (error: any) {
     res.status(400).json({ message: error.message });
@@ -17,19 +22,19 @@ export const placeBid = async (req: Request, res: Response) => {
 
 // Hàm mới cho Watchlist
 export const addToWatchlist = async (req: Request, res: Response) => {
-    try {
-        // Lấy userId từ token (đã qua middleware auth)
-        const userId = (req as any).user.id;
-        // Lấy productId từ URL
-        const productId = parseInt(req.params.id);
+  try {
+    // Lấy userId từ token (đã qua middleware auth)
+    const userId = (req as any).user.id;
+    // Lấy productId từ URL
+    const productId = parseInt(req.params.id);
 
-        await bidderService.addToWatchlist(userId, productId);
-        
-        res.status(200).json({ message: "Sản phẩm đã được thêm vào Watchlist." });
-    } catch (error: any) {
-        console.error("Watchlist Error:", error);
-        res.status(500).json({ message: "Lỗi server khi thêm Watchlist." });
-    }
+    await bidderService.addToWatchlist(userId, productId);
+
+    res.status(200).json({ message: "Sản phẩm đã được thêm vào Watchlist." });
+  } catch (error: any) {
+    console.error("Watchlist Error:", error);
+    res.status(500).json({ message: "Lỗi server khi thêm Watchlist." });
+  }
 };
 // backend/src/controllers/bidder.controller.ts
 
@@ -37,9 +42,9 @@ export const getWatchlist = async (req: Request, res: Response) => {
   try {
     const userId = (req as any).user.id;
     const list = await bidderService.getMyWatchList(userId);
-    
+
     // --- THÊM DÒNG NÀY ĐỂ DEBUG ---
-    console.log(`User ${userId} watchlist:`, list); 
+    console.log(`User ${userId} watchlist:`, list);
     // ------------------------------
 
     res.json(list);
@@ -58,3 +63,20 @@ export const getMyBids = async (req: Request, res: Response) => {
     res.status(500).json({ message: error.message });
   }
 };
+
+// --- [THÊM MỚI] ---
+export const createQuestion = async (req: Request, res: Response) => {
+  try {
+    const userId = (req as any).user.id;
+    const productId = parseInt(req.params.id);
+    const { question } = req.body;
+
+    if (!question) throw new Error("Nội dung câu hỏi không được để trống");
+
+    await bidderService.postQuestion(userId, productId, question);
+    res.status(201).json({ message: "Gửi câu hỏi thành công" });
+  } catch (error: any) {
+    res.status(400).json({ message: error.message });
+  }
+};
+// ------------------

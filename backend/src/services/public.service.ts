@@ -25,7 +25,7 @@ export const fetchCategories = async () => {
   return parents;
 };
 
-// 2. Task: API Lấy Sản phẩm (có lọc Category) - ĐÃ SỬA THÊM BIDDER
+// 2. Task: API Lấy Sản phẩm (có lọc Category)
 export const fetchProducts = async (
   page: number,
   limit: number,
@@ -33,7 +33,6 @@ export const fetchProducts = async (
 ) => {
   const offset = (page - 1) * limit;
 
-  // --- [SỬA LẠI QUERY ĐỂ LẤY BIDDER_NAME] ---
   let query = `
     SELECT p.*, 
            c.name as category_name,
@@ -60,7 +59,6 @@ export const fetchProducts = async (
 
   const productsResult = await pool.query(query, params);
 
-  // Query đếm tổng
   let countQuery =
     "SELECT COUNT(*) as total FROM Products p LEFT JOIN Categories c ON p.category_id = c.id";
   let countParams: any[] = [];
@@ -80,20 +78,13 @@ export const fetchProducts = async (
   };
 };
 
-// 3. Task: API Lấy chi tiết sản phẩm
+// 3. Task: API Lấy chi tiết sản phẩm (Đã có Rating + Related)
 export const fetchProductById = async (id: number) => {
-  // 1. Lấy chi tiết sản phẩm + Thông tin Seller + Thông tin Bidder (Kèm Rating)
   const productRes = await pool.query(
     `
     SELECT p.*, c.name as category_name,
-           -- Thông tin Seller
-           s.full_name as seller_name, 
-           s.rating_plus as seller_rating_plus, 
-           s.rating_minus as seller_rating_minus,
-           -- Thông tin Bidder
-           b.full_name as bidder_name,
-           b.rating_plus as bidder_rating_plus,   -- <--- Lấy thêm
-           b.rating_minus as bidder_rating_minus  -- <--- Lấy thêm
+           s.full_name as seller_name, s.rating_plus as seller_rating_plus, s.rating_minus as seller_rating_minus,
+           b.full_name as bidder_name, b.rating_plus as bidder_rating_plus, b.rating_minus as bidder_rating_minus
     FROM Products p
     LEFT JOIN Categories c ON p.category_id = c.id
     JOIN Users s ON p.seller_id = s.id
@@ -110,19 +101,16 @@ export const fetchProductById = async (id: number) => {
   const product = productRes.rows[0];
   product.category = product.category_name;
 
-  // 2. Lấy ảnh
   const imagesRes = await pool.query(
     `SELECT image_url FROM Product_Images WHERE product_id = $1 ORDER BY id ASC`,
     [id]
   );
 
-  // 3. Lấy lịch sử mô tả
   const descRes = await pool.query(
     `SELECT description_text, created_at FROM Product_Description_History WHERE product_id = $1 ORDER BY created_at ASC`,
     [id]
   );
 
-  // 4. [MỚI] Lấy 5 sản phẩm liên quan (Cùng category, khác ID hiện tại)
   const relatedRes = await pool.query(
     `
     SELECT p.*, c.name as category_name,
@@ -130,7 +118,7 @@ export const fetchProductById = async (id: number) => {
     FROM Products p
     LEFT JOIN Categories c ON p.category_id = c.id
     WHERE p.category_id = $1 AND p.id != $2 AND p.end_at > NOW()
-    ORDER BY p.bid_count DESC -- Ưu tiên sản phẩm hot
+    ORDER BY p.bid_count DESC
     LIMIT 5
     `,
     [product.category_id, id]
@@ -144,53 +132,41 @@ export const fetchProductById = async (id: number) => {
       rating_plus: product.seller_rating_plus,
       rating_minus: product.seller_rating_minus,
     },
-    // Thông tin Bidder chi tiết
+    bidder_name: product.bidder_name,
     current_highest_bidder: product.current_highest_bidder_id
       ? {
           id: product.current_highest_bidder_id,
           full_name: product.bidder_name,
-          rating_plus: product.bidder_rating_plus, // <--- Trả về
-          rating_minus: product.bidder_rating_minus, // <--- Trả về
+          rating_plus: product.bidder_rating_plus,
+          rating_minus: product.bidder_rating_minus,
         }
       : null,
     images: imagesRes.rows.map((row: any) => row.image_url),
     description_history: descRes.rows,
-    related_products: relatedRes.rows.map(mapProductImage), // <--- Trả về 5 SP liên quan
+    related_products: relatedRes.rows.map(mapProductImage),
   };
 };
 
-// 4. Task: API Lấy Top sản phẩm cho Trang chủ - ĐÃ SỬA THÊM BIDDER
+// 4. Task: API Lấy Top sản phẩm cho Trang chủ
 export const fetchHomepageTops = async () => {
-  // --- [SỬA LẠI QUERY ĐỂ LẤY BIDDER_NAME] ---
   const baseSelect = `
-    SELECT p.*, 
-           c.name as category_name,
-           b.full_name as bidder_name,
-           (SELECT image_url FROM Product_Images WHERE product_id = p.id ORDER BY id ASC LIMIT 1) as thumbnail 
+    SELECT p.*, c.name as category_name, b.full_name as bidder_name,
+    (SELECT image_url FROM Product_Images WHERE product_id = p.id ORDER BY id ASC LIMIT 1) as thumbnail 
     FROM Products p 
     LEFT JOIN Categories c ON p.category_id = c.id 
     LEFT JOIN Users b ON p.current_highest_bidder_id = b.id
   `;
 
-  // Top 5 Sắp kết thúc
   const endingSoon = await pool.query(`
-    ${baseSelect}
-    WHERE end_at > NOW() 
-    ORDER BY end_at ASC LIMIT 5
+    ${baseSelect} WHERE end_at > NOW() ORDER BY end_at ASC LIMIT 5
   `);
 
-  // Top 5 Nhiều lượt ra giá nhất
   const mostBids = await pool.query(`
-    ${baseSelect}
-    WHERE end_at > NOW() 
-    ORDER BY bid_count DESC LIMIT 5
+    ${baseSelect} WHERE end_at > NOW() ORDER BY bid_count DESC LIMIT 5
   `);
 
-  // Top 5 Giá cao nhất
   const highestPrice = await pool.query(`
-    ${baseSelect}
-    WHERE end_at > NOW() 
-    ORDER BY current_price DESC LIMIT 5
+    ${baseSelect} WHERE end_at > NOW() ORDER BY current_price DESC LIMIT 5
   `);
 
   return {
@@ -200,7 +176,7 @@ export const fetchHomepageTops = async () => {
   };
 };
 
-// 5. Task: Tìm kiếm sản phẩm (Full Text Search) - ĐÃ CÓ SẴN BIDDER
+// 5. Task: Tìm kiếm sản phẩm
 export const searchProducts = async (
   keyword: string,
   page: number,
@@ -232,10 +208,7 @@ export const searchProducts = async (
   `;
 
   const countQuery = `
-    SELECT COUNT(*) as total 
-    FROM Products p
-    WHERE p.search_vector @@ plainto_tsquery('english', $1)
-    AND p.end_at > NOW()
+    SELECT COUNT(*) as total FROM Products p WHERE p.search_vector @@ plainto_tsquery('english', $1) AND p.end_at > NOW()
   `;
 
   const productsResult = await pool.query(query, [keyword, limit, offset]);
@@ -252,7 +225,7 @@ export const searchProducts = async (
   };
 };
 
-// 6. Task: Lấy thông tin Seller (Giữ nguyên)
+// 6. Task: Lấy thông tin Seller
 export const getSellerInfo = async (sellerId: number) => {
   const userRes = await pool.query(
     `SELECT id, full_name, email, rating_plus, rating_minus, created_at 
@@ -283,6 +256,7 @@ export const getSellerInfo = async (sellerId: number) => {
   return { seller: userRes.rows[0], products: productsRes.rows };
 };
 
+// 7. Task: Lấy lịch sử đấu giá
 export const getBidHistory = async (productId: number) => {
   const res = await pool.query(
     `
@@ -307,4 +281,33 @@ export const getBidHistory = async (productId: number) => {
       bidder_name: `*** ${lastName}`,
     };
   });
+};
+
+// --- [ĐÂY LÀ PHẦN BẠN ĐANG THIẾU] ---
+
+// 8. Task: Lấy câu hỏi Q&A
+export const getProductQuestions = async (productId: number) => {
+  const res = await pool.query(
+    `SELECT q.*, u.full_name as user_name 
+     FROM Product_Questions q
+     JOIN Users u ON q.user_id = u.id
+     WHERE q.product_id = $1
+     ORDER BY q.created_at DESC`,
+    [productId]
+  );
+  return res.rows;
+};
+
+// 9. Task: Lấy đánh giá Seller
+export const getSellerReviews = async (sellerId: number) => {
+  const res = await pool.query(
+    `SELECT r.score, r.comment, r.created_at, u.full_name as rater_name
+     FROM Ratings r
+     JOIN Users u ON r.rater_id = u.id
+     WHERE r.rated_user_id = $1
+     ORDER BY r.created_at DESC
+     LIMIT 10`,
+    [sellerId]
+  );
+  return res.rows;
 };
