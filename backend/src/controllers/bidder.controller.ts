@@ -23,7 +23,12 @@ export const addToWatchlist = async (req: Request, res: Response) => {
         // Lấy productId từ URL
         const productId = parseInt(req.params.id);
 
-        await bidderService.addToWatchlist(userId, productId);
+        const result = await bidderService.addToWatchlist(userId, productId);
+
+        if (!result.success) {
+          return res.status(409).json({ message: result.message });
+        }
+
         
         res.status(200).json({ message: "Sản phẩm đã được thêm vào Watchlist." });
     } catch (error: any) {

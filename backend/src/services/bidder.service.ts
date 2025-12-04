@@ -179,11 +179,17 @@ export const placeBid = async (
 };
 
 export const addToWatchlist = async (userId: number, productId: number) => {
-  await pool.query(
+  const res = await pool.query(
     `INSERT INTO Watchlists (user_id, product_id) VALUES ($1, $2) 
          ON CONFLICT (user_id, product_id) DO NOTHING`,
     [userId, productId]
   );
+  if (res.rowCount === 0) {
+    return{
+      success: false,
+      message: "Sản phẩm đã có trong danh sách theo dõi của bạn.",
+    }
+  }
   return {
     success: true,
     message: "Đã thêm vào danh sách theo dõi thành công!",

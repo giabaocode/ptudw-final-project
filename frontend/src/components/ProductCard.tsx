@@ -25,6 +25,7 @@ interface ProductCardProps {
   createdAt?: string; // Dùng để tính badge "Mới"
 
   onViewDetails: (id: number) => void;
+  onAddToWatchlist?: (id: number) => void;
 }
 
 const NEW_PRODUCT_THRESHOLD_MINUTES = 60; // 60 phút
@@ -39,6 +40,7 @@ export function ProductCard({
   bidderName,
   createdAt,
   onViewDetails,
+  onAddToWatchlist
 }: ProductCardProps) {
   // Logic kiểm tra sản phẩm mới
   const isNew = createdAt
@@ -69,7 +71,12 @@ export function ProductCard({
           </div>
         )}
 
-        <button className="absolute top-3 right-3 bg-white/90 backdrop-blur rounded-full p-2 shadow-sm hover:bg-white transition-colors">
+        <button className="absolute top-3 right-3 bg-white/90 backdrop-blur rounded-full p-2 shadow-sm hover:bg-white transition-colors"
+          onClick={(e) => {
+            e.stopPropagation();
+            onAddToWatchlist && onAddToWatchlist(id);
+          }}
+          title="Add to Watchlist">
           <Heart className="h-4 w-4 text-gray-600" />
         </button>
       </div>

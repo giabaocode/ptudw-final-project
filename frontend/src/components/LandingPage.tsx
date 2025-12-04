@@ -23,6 +23,9 @@ import {
   SelectValue,
 } from "./ui/select"; // Cần component Select từ shadcn/ui
 
+import { useAuth } from "../context/AuthContext";
+import { toast } from "sonner";
+
 interface LandingPageProps {
   onNavigate: (page: string, id?: number) => void;
   categoryId?: number | null;
@@ -104,6 +107,30 @@ export function LandingPage({
   const [sortOption, setSortOption] = useState("default"); // default, time_desc, price_asc
 
   const [loading, setLoading] = useState(true);
+
+  const { isLoggedIn, token } = useAuth();
+  
+  const handleAddToWatchlist = async (productId: number) => {
+    if (!isLoggedIn) {
+      toast.error("Vui lòng đăng nhập để thêm vào danh sách theo dõi.");
+      onNavigate("login");
+      return;
+    }
+    try {
+      await axios.post(
+        `/api/bidder/products/${productId}/watchlist`,{}, {headers: {Authorization: `Bearer ${token}`}}
+      );
+      toast.success("Đã thêm vào danh sách theo dõi!");
+    }catch (error : any) {
+      if (error.response && error.response.status === 409) {
+        toast.info("Sản phẩm đã có trong danh sách theo dõi của bạn.");
+        return;
+      }else{
+        console.error("Lỗi khi thêm vào danh sách theo dõi:", error);
+        toast.error("Thêm vào danh sách theo dõi thất bại.");
+      }
+  }
+  }
 
   useEffect(() => {
     const fetchData = async () => {
@@ -344,6 +371,7 @@ export function LandingPage({
                     }
                     endTime={new Date(auction.end_at)}
                     onViewDetails={(id) => onNavigate("auction", id)}
+                    onAddToWatchlist={handleAddToWatchlist}
                   />
                 ))}
               </div>
@@ -378,6 +406,7 @@ export function LandingPage({
                     }
                     endTime={new Date(auction.end_at)}
                     onViewDetails={(id) => onNavigate("auction", id)}
+                    onAddToWatchlist={handleAddToWatchlist}
                   />
                 ))}
               </div>
@@ -411,6 +440,7 @@ export function LandingPage({
                         : ""
                     }
                     onViewDetails={(id) => onNavigate("product", id)}
+                    onAddToWatchlist={handleAddToWatchlist}
                   />
                 ))}
               </div>
@@ -486,6 +516,7 @@ export function LandingPage({
                       : ""
                   }
                   onViewDetails={(id) => onNavigate("product", id)}
+                  onAddToWatchlist={handleAddToWatchlist}
                 />
               ))}
 
