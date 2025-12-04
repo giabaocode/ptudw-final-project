@@ -1,4 +1,12 @@
-import { Mail, Lock, User as UserIcon, Store, MapPin } from "lucide-react";
+import {
+  Mail,
+  Lock,
+  User as UserIcon,
+  Store,
+  MapPin,
+  Loader2,
+  Check,
+} from "lucide-react";
 import { Button } from "./ui/button";
 import { Input } from "./ui/input";
 import { Label } from "./ui/label";
@@ -21,15 +29,38 @@ export function SignupPage({ onNavigate }: SignupPageProps) {
     address: "",
   });
 
+  // State cho Captcha
+  const [isNotRobot, setIsNotRobot] = useState(false);
+  const [isVerifying, setIsVerifying] = useState(false); // State đang xoay
+
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target;
     setFormData((prev) => ({ ...prev, [name]: value }));
   };
 
+  // --- HÀM XỬ LÝ CLICK CAPTCHA ---
+  const handleCaptchaClick = () => {
+    if (isNotRobot || isVerifying) return; // Nếu đã tick hoặc đang xoay thì không làm gì
+
+    setIsVerifying(true); // Bắt đầu xoay
+
+    // Giả lập delay 1.5 giây sau đó hiện dấu tick
+    setTimeout(() => {
+      setIsVerifying(false); // Dừng xoay
+      setIsNotRobot(true); // Hiện dấu tick
+    }, 1500);
+  };
+  // ------------------------------
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (formData.password !== formData.confirmPassword) {
       toast.error("Mật khẩu không khớp. Vui lòng kiểm tra lại.");
+      return;
+    }
+
+    if (!isNotRobot) {
+      toast.error("Vui lòng xác nhận bạn không phải là người máy.");
       return;
     }
 
@@ -39,19 +70,16 @@ export function SignupPage({ onNavigate }: SignupPageProps) {
         email: formData.email,
         password: formData.password,
         address: formData.address,
-        // user_type sẽ được backend xử lý hoặc mặc định là bidder
         user_type: accountType,
-        // Nếu backend cần số (ví dụ 1: buyer, 2: seller) thì phải map lại:
-        // role: accountType === 'seller' ? 'SELLER' : 'BIDDER'
+        recaptcha_token: "SKIP_CAPTCHA_TEST_MODE",
       };
 
       await axios.post("/api/auth/register", payload);
-      toast.success("Đăng ký thành công! Vui lòng kiểm tra email để xác thực.");
+      toast.success("Đăng ký thành công! Vui lòng đăng nhập.");
       onNavigate("login");
     } catch (error: any) {
       console.error("Signup failed:", error);
-      const errorMessage =
-        error.response?.data?.message || "Đăng ký thất bại. Vui lòng thử lại.";
+      const errorMessage = error.response?.data?.message || "Đăng ký thất bại.";
       toast.error(errorMessage);
     }
   };
@@ -59,64 +87,89 @@ export function SignupPage({ onNavigate }: SignupPageProps) {
   return (
     <div className="min-h-screen bg-[#F5F5F7] flex items-center justify-center px-4 py-12">
       <div className="max-w-md w-full">
-        {/* --- KHUNG CARD (BẮT ĐẦU) --- */}
         <div className="bg-white rounded-2xl shadow-lg p-8">
-          {/* Header của Card */}
           <div className="text-center mb-8">
             <div className="w-16 h-16 bg-gradient-to-br from-[#0A84FF] to-[#FFD700] rounded-2xl flex items-center justify-center mx-auto mb-4">
-              <span className="text-2xl text-white">AB</span>
+              <span className="text-2xl text-white font-bold">AB</span>
             </div>
-            <h1 className="text-3xl text-gray-900 mb-2">Create Account</h1>
+            <h1 className="text-3xl text-gray-900 font-bold mb-2">
+              Create Account
+            </h1>
             <p className="text-gray-600">
               Join AuctionBay to start buying or selling
             </p>
           </div>
 
-          {/* Account Type Selection */}
           <div className="mb-6">
-            <Label className="mb-3 block">Account Type</Label>
-            <RadioGroup
-              value={accountType}
-              // --- SỬA LỖI TẠI ĐÂY: Thêm type :string cho value ---
-              onValueChange={(value: string) =>
-                setAccountType(value as "buyer" | "seller")
-              }
-              className="grid grid-cols-2 gap-4"
-            >
-              <div>
-                <RadioGroupItem
+            <Label className="mb-3 block text-sm font-medium text-gray-700">
+              Account Type
+            </Label>
+            <div className="grid grid-cols-2 gap-4">
+              <label
+                className={`cursor-pointer flex flex-col items-center justify-center rounded-xl border-2 p-4 transition-all ${
+                  accountType === "buyer"
+                    ? "border-[#0A84FF] bg-blue-50"
+                    : "border-gray-200 bg-white hover:bg-gray-50"
+                }`}
+              >
+                <input
+                  type="radio"
+                  name="accountType"
                   value="buyer"
-                  id="buyer"
-                  className="peer sr-only"
+                  checked={accountType === "buyer"}
+                  onChange={() => setAccountType("buyer")}
+                  className="sr-only"
                 />
-                <Label
-                  htmlFor="buyer"
-                  className="flex flex-col items-center justify-center rounded-xl border-2 border-gray-200 bg-white p-4 hover:bg-gray-50 peer-data-[state=checked]:border-[#0A84FF] peer-data-[state=checked]:bg-blue-50 cursor-pointer transition-all"
+                <UserIcon
+                  className={`mb-2 h-6 w-6 ${
+                    accountType === "buyer" ? "text-[#0A84FF]" : "text-gray-500"
+                  }`}
+                />
+                <span
+                  className={`font-medium ${
+                    accountType === "buyer" ? "text-[#0A84FF]" : "text-gray-700"
+                  }`}
                 >
-                  <UserIcon className="mb-2 h-6 w-6" />
-                  <span>Buyer</span>
-                </Label>
-              </div>
-              <div>
-                <RadioGroupItem
+                  Buyer
+                </span>
+              </label>
+
+              <label
+                className={`cursor-pointer flex flex-col items-center justify-center rounded-xl border-2 p-4 transition-all ${
+                  accountType === "seller"
+                    ? "border-[#0A84FF] bg-blue-50"
+                    : "border-gray-200 bg-white hover:bg-gray-50"
+                }`}
+              >
+                <input
+                  type="radio"
+                  name="accountType"
                   value="seller"
-                  id="seller"
-                  className="peer sr-only"
+                  checked={accountType === "seller"}
+                  onChange={() => setAccountType("seller")}
+                  className="sr-only"
                 />
-                <Label
-                  htmlFor="seller"
-                  className="flex flex-col items-center justify-center rounded-xl border-2 border-gray-200 bg-white p-4 hover:bg-gray-50 peer-data-[state=checked]:border-[#0A84FF] peer-data-[state=checked]:bg-blue-50 cursor-pointer transition-all"
+                <Store
+                  className={`mb-2 h-6 w-6 ${
+                    accountType === "seller"
+                      ? "text-[#0A84FF]"
+                      : "text-gray-500"
+                  }`}
+                />
+                <span
+                  className={`font-medium ${
+                    accountType === "seller"
+                      ? "text-[#0A84FF]"
+                      : "text-gray-700"
+                  }`}
                 >
-                  <Store className="mb-2 h-6 w-6" />
-                  <span>Seller</span>
-                </Label>
-              </div>
-            </RadioGroup>
+                  Seller
+                </span>
+              </label>
+            </div>
           </div>
 
-          {/* Form */}
           <form onSubmit={handleSubmit} className="space-y-4">
-            {/* Input Full Name */}
             <div>
               <Label htmlFor="name">Full Name</Label>
               <div className="relative mt-2">
@@ -134,7 +187,6 @@ export function SignupPage({ onNavigate }: SignupPageProps) {
               </div>
             </div>
 
-            {/* Input Email */}
             <div>
               <Label htmlFor="email">Email Address</Label>
               <div className="relative mt-2">
@@ -152,7 +204,6 @@ export function SignupPage({ onNavigate }: SignupPageProps) {
               </div>
             </div>
 
-            {/* Input Address */}
             <div>
               <Label htmlFor="address">Address</Label>
               <div className="relative mt-2">
@@ -170,7 +221,6 @@ export function SignupPage({ onNavigate }: SignupPageProps) {
               </div>
             </div>
 
-            {/* Input Password */}
             <div>
               <Label htmlFor="password">Password</Label>
               <div className="relative mt-2">
@@ -188,7 +238,6 @@ export function SignupPage({ onNavigate }: SignupPageProps) {
               </div>
             </div>
 
-            {/* Input Confirm Password */}
             <div>
               <Label htmlFor="confirmPassword">Confirm Password</Label>
               <div className="relative mt-2">
@@ -206,15 +255,69 @@ export function SignupPage({ onNavigate }: SignupPageProps) {
               </div>
             </div>
 
+            {/* --- CAPTCHA MỚI (ANIMATION MƯỢT) --- */}
+            <div className="flex justify-center pt-4">
+              <div className="flex items-center p-3 bg-[#f9f9f9] border border-[#d3d3d3] rounded-[3px] w-fit min-w-[300px] shadow-[0_0_4px_1px_rgba(0,0,0,0.08)] select-none hover:bg-[#f0f0f0] transition-colors">
+                {/* Ô CHECKBOX */}
+                <div
+                  onClick={handleCaptchaClick}
+                  className={`
+                            w-[28px] h-[28px] bg-white border-[2px] rounded-[2px] flex items-center justify-center cursor-pointer mr-3 transition-all duration-200
+                            ${
+                              isNotRobot
+                                ? "border-transparent"
+                                : "border-[#c1c1c1] hover:border-[#b2b2b2]"
+                            }
+                        `}
+                >
+                  {isVerifying ? (
+                    // 1. Spinner xoay mượt (dùng class mới animate-spin-smooth)
+                    <Loader2
+                      className="w-6 h-6 text-[#0A84FF] animate-spin-smooth"
+                      strokeWidth={2.5}
+                    />
+                  ) : isNotRobot ? (
+                    // 2. Dấu tick nảy ra (dùng animate-pop)
+                    <Check
+                      className="w-7 h-7 text-[#009900] animate-pop"
+                      strokeWidth={3}
+                    />
+                  ) : // 3. Trạng thái chưa bấm
+                  null}
+                </div>
+
+                <label
+                  onClick={handleCaptchaClick}
+                  className="text-[14px] font-normal text-black cursor-pointer flex-1"
+                >
+                  I'm not a robot
+                </label>
+
+                <div className="flex flex-col items-center justify-center ml-4">
+                  <img
+                    src="https://www.gstatic.com/recaptcha/api2/logo_48.png"
+                    alt="recaptcha"
+                    className="w-8 h-8 opacity-70"
+                  />
+                  <span className="text-[10px] text-gray-500 mt-1">
+                    reCAPTCHA
+                  </span>
+                  <div className="text-[8px] text-gray-400 flex gap-1">
+                    <span>Privacy</span>-<span>Terms</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+            {/* ------------------------------------- */}
+
             <Button
               type="submit"
-              className="w-full bg-[#0A84FF] hover:bg-[#0A84FF]/90 mt-6"
+              className="w-full bg-[#0A84FF] hover:bg-[#0A84FF]/90 mt-6 h-11 text-base"
             >
               Create Account
             </Button>
           </form>
 
-          {/* Footer Links */}
           <p className="text-xs text-center text-gray-500 mt-4">
             By signing up, you agree to our{" "}
             <a href="#" className="text-[#0A84FF] hover:underline">
@@ -231,13 +334,12 @@ export function SignupPage({ onNavigate }: SignupPageProps) {
             <button
               type="button"
               onClick={() => onNavigate("login")}
-              className="text-[#0A84FF] hover:underline"
+              className="text-[#0A84FF] hover:underline font-medium"
             >
               Sign in
             </button>
           </p>
         </div>
-        {/* --- KHUNG CARD (KẾT THÚC) --- */}
       </div>
     </div>
   );
