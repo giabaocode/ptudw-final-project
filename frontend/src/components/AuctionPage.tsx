@@ -535,12 +535,16 @@ export function AuctionPage({ onNavigate, auctionId }: AuctionPageProps) {
                 </TabsList>
 
                 <TabsContent value="description">
-                  <div className="prose prose-gray max-w-none text-gray-600 whitespace-pre-line leading-relaxed bg-white p-6 rounded-xl border border-gray-100">
-                    {auction.description_history &&
-                    auction.description_history.length > 0
-                      ? auction.description_history[0].description_text
-                      : auction.description}
-                  </div>
+                  <div 
+                    className="prose prose-gray max-w-none text-gray-600 whitespace-pre-line leading-relaxed bg-white p-6 rounded-xl border border-gray-100"
+                    dangerouslySetInnerHTML={{
+                      __html: (
+                        auction.description_history && auction.description_history.length > 0
+                          ? auction.description_history[0].description_text
+                          : auction.description
+                      ) || '' // <--- Bổ sung || '' để luôn đảm bảo là chuỗi
+                    }}
+                  />
                 </TabsContent>
 
                 <TabsContent value="history">

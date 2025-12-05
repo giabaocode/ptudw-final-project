@@ -146,7 +146,10 @@ export const placeBid = async (
     const timeRemaining = new Date(product.end_at).getTime() - now.getTime();
     let newEndAt = product.end_at;
 
-    if (timeRemaining > 0 && timeRemaining < 5 * 60 * 1000) {
+    const IS_AUTO_EXTEND_ENABLED = true; 
+
+    if (IS_AUTO_EXTEND_ENABLED && timeRemaining > 0 && timeRemaining < 5 * 60 * 1000) {
+      console.log("⚡ Kích hoạt Anti-Sniping: Gia hạn thêm 10 phút!");
       newEndAt = new Date(new Date(product.end_at).getTime() + 10 * 60 * 1000);
     }
 

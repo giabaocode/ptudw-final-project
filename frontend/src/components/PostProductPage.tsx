@@ -8,6 +8,9 @@ import { Card, CardContent, CardHeader, CardTitle } from "./ui/card";
 import { toast } from "sonner";
 import axios from "axios";
 import { useAuth } from "../context/AuthContext";
+import ReactQuill from 'react-quill';
+import 'react-quill/dist/quill.snow.css';
+import { useState } from "react"; // Nhớ import useState
 
 interface PostProductPageProps {
   onNavigate: (page: string) => void;
@@ -15,6 +18,7 @@ interface PostProductPageProps {
 
 export function PostProductPage({ onNavigate }: PostProductPageProps) {
   const { token } = useAuth();
+  const [descContent, setDescContent] = useState(""); // State riêng cho mô tả
   const {
     register,
     handleSubmit,
@@ -29,8 +33,8 @@ export function PostProductPage({ onNavigate }: PostProductPageProps) {
         .map((url: string) => url.trim())
         .filter((url: string) => url !== "");
 
-      if (imagesArray.length < 1) {
-        toast.error("Vui lòng nhập ít nhất 1 link ảnh");
+      if (imagesArray.length < 3) {
+        toast.error("Vui lòng nhập ít nhất 3 link ảnh");
         return;
       }
 
@@ -41,11 +45,12 @@ export function PostProductPage({ onNavigate }: PostProductPageProps) {
         step_price: Number(data.step_price),
         buy_now_price: data.buy_now_price ? Number(data.buy_now_price) : null,
         end_at: data.end_at,
-        description: data.description,
+        description: descContent,
         category_id: Number(data.category_id),
         images: imagesArray, 
         // Thêm trường này từ nhánh test-2
         allow_new_bidders: data.allow_new_bidders, 
+        
       };
 
       await axios.post("/api/seller/products", payload, {
@@ -119,9 +124,15 @@ export function PostProductPage({ onNavigate }: PostProductPageProps) {
               </div>
 
               {/* Mô tả */}
-              <div>
-                <Label htmlFor="description">Mô tả chi tiết</Label>
-                <Textarea id="description" className="h-32" placeholder="Mô tả tình trạng, xuất xứ, bảo hành..." {...register("description", { required: true })} />
+             <div className="mb-12"> {/* Thêm margin bottom vì toolbar của Quill cần chỗ */}
+                <Label className="mb-2 block">Mô tả chi tiết sản phẩm</Label>
+                <ReactQuill 
+                  theme="snow"
+                  value={descContent}
+                  onChange={setDescContent}
+                  className="h-64 bg-white"
+                  placeholder="Nhập thông tin chi tiết, tình trạng, cấu hình..."
+                />
               </div>
 
               {/* Input ảnh (Textarea nhiều dòng) */}
@@ -160,7 +171,9 @@ export function PostProductPage({ onNavigate }: PostProductPageProps) {
                 </div>
               </div>
               {/* ----------------------------------------------------- */}
-
+              <p className="text-xs text-gray-500 italic mt-4">
+                * Mặc định hệ thống sẽ tự động gia hạn 10 phút nếu có người đấu giá vào phút chót.
+              </p>
               <Button type="submit" className="w-full bg-[#0A84FF] hover:bg-[#0070E0]" disabled={isSubmitting}>
                 {isSubmitting ? "Đang xử lý..." : "Đăng Sản Phẩm"}
               </Button>

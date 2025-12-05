@@ -41,23 +41,23 @@ const getAvatarColor = (name: string) => {
 export function ProfilePage({ onNavigate }: ProfilePageProps) {
   const { user, token, login } = useAuth();
   
-  // Data States
+  // Data
   const [watchlist, setWatchlist] = useState<Product[]>([]);
   const [rawMyBids, setRawMyBids] = useState<Product[]>([]); 
   const [myFeedback, setMyFeedback] = useState<Feedback[]>([]);
   const [myProducts, setMyProducts] = useState<Product[]>([]);
   const [loading, setLoading] = useState(true);
 
-  // Pagination States
+  // Pagination
   const [pageWon, setPageWon] = useState(1);
   const [pageBids, setPageBids] = useState(1);
 
-  // Form States
+  // Form
   const [profileForm, setProfileForm] = useState({ full_name: "", email: "", address: "", dob: "" });
   const [passForm, setPassForm] = useState({ oldPass: "", newPass: "" });
   const [isUpgrading, setIsUpgrading] = useState(false);
   
-  // Rating Modal States
+  // Modal
   const [ratingModalOpen, setRatingModalOpen] = useState(false);
   const [ratingProduct, setRatingProduct] = useState<Product | null>(null);
   const [ratingScore, setRatingScore] = useState<"positive" | "negative">("positive");
@@ -70,37 +70,19 @@ export function ProfilePage({ onNavigate }: ProfilePageProps) {
     const fetchData = async () => {
         setLoading(true);
         const headers = { Authorization: `Bearer ${token}` };
-        try { 
-            const resWatch = await axios.get("/api/bidder/watchlist", { headers });
-            setWatchlist(resWatch.data);
-        } catch (e) { console.error("Error fetching watchlist", e); }
-
-        try { 
-            const resBids = await axios.get("/api/bidder/my-bids", { headers });
-            setRawMyBids(resBids.data);
-        } catch (e) { console.error("Error fetching bids", e); }
-
-        try { 
-            const resFeedback = await axios.get("/api/auth/feedback", { headers });
-            setMyFeedback(resFeedback.data);
-        } catch (e) { console.error("Error fetching feedback", e); }
-
+        try { setWatchlist((await axios.get("/api/bidder/watchlist", { headers })).data); } catch (e) {}
+        try { setRawMyBids((await axios.get("/api/bidder/my-bids", { headers })).data); } catch (e) {}
+        try { setMyFeedback((await axios.get("/api/auth/feedback", { headers })).data); } catch (e) {}
         if (user?.user_type === 'seller') {
-            try { 
-                const resProds = await axios.get("/api/seller/my-products", { headers });
-                setMyProducts(resProds.data.products || resProds.data); // Handle cả trường hợp trả về {products: []} hoặc []
-            } catch (e) { console.error("Error fetching products", e); }
+            try { setMyProducts((await axios.get("/api/seller/my-products", { headers })).data.products); } catch (e) {}
         }
         setLoading(false);
     };
     fetchData();
   }, [token, user]);
 
-  // Logic lọc sản phẩm thắng/thua/đang đấu
   const now = new Date().getTime();
-  // Sản phẩm đã kết thúc VÀ người thắng là mình
   const wonBids = rawMyBids.filter(p => new Date(p.end_at).getTime() <= now && p.current_highest_bidder_id === user?.id);
-  // Sản phẩm chưa kết thúc
   const activeBids = rawMyBids.filter(p => new Date(p.end_at).getTime() > now);
 
   const paginate = (items: any[], page: number) => {
@@ -123,9 +105,7 @@ export function ProfilePage({ onNavigate }: ProfilePageProps) {
         toast.success("Đánh giá thành công!");
         setRatingModalOpen(false);
         setRatingComment("");
-    } catch (error: any) { 
-        toast.error(error.response?.data?.message || "Lỗi gửi đánh giá."); 
-    }
+    } catch (error: any) { toast.error(error.response?.data?.message || "Lỗi gửi đánh giá."); }
   };
 
   const handleUpdateProfile = async () => {
@@ -145,9 +125,8 @@ export function ProfilePage({ onNavigate }: ProfilePageProps) {
 
   const handleRequestUpgrade = async () => {
     try {
-        // Giả lập API request upgrade
-        // await axios.post("/api/bidder/upgrade-request", { reason: "Upgrade" }, { headers: { Authorization: `Bearer ${token}` } });
-        toast.success("Đã gửi yêu cầu lên Admin!");
+        await axios.post("/api/bidder/upgrade-request", { reason: "Upgrade" }, { headers: { Authorization: `Bearer ${token}` } });
+        toast.success("Đã gửi yêu cầu!");
     } catch (e) { toast.error("Lỗi gửi yêu cầu."); } finally { setIsUpgrading(false); }
   };
 
@@ -184,7 +163,7 @@ export function ProfilePage({ onNavigate }: ProfilePageProps) {
                 </Button>
              )}
              {user?.user_type === 'seller' && (
-                <Button onClick={() => onNavigate("post-product")} className="bg-[#1a73e8] hover:bg-[#1557b0] shadow-md gap-2">
+                <Button onClick={() => onNavigate("post-product")} className="bg-[#1a73e8] hover:bg-[#1557b0] shadow-md gap-2 text-black">
                     <Package className="w-4 h-4"/> Đăng bán
                 </Button>
              )}
@@ -192,11 +171,11 @@ export function ProfilePage({ onNavigate }: ProfilePageProps) {
         </div>
 
         {/* Tabs */}
-        <Tabs defaultValue="bids" className="w-full">
+        <Tabs defaultValue="won" className="w-full">
           <div className="bg-white p-1 rounded-xl shadow-sm border border-gray-200 mb-6 overflow-x-auto">
             <TabsList className="bg-transparent p-0 w-full flex justify-start gap-1 min-w-max">
-                <TabsTrigger value="bids" className="data-[state=active]:bg-blue-50 data-[state=active]:text-blue-700 px-4 py-2 gap-2"><Gavel className="w-4 h-4"/> Đang đấu</TabsTrigger>
                 <TabsTrigger value="won" className="data-[state=active]:bg-blue-50 data-[state=active]:text-blue-700 px-4 py-2 gap-2"><Trophy className="w-4 h-4"/> Đã thắng</TabsTrigger>
+                <TabsTrigger value="bids" className="data-[state=active]:bg-blue-50 data-[state=active]:text-blue-700 px-4 py-2 gap-2"><Gavel className="w-4 h-4"/> Đang đấu</TabsTrigger>
                 <TabsTrigger value="watchlist" className="data-[state=active]:bg-blue-50 data-[state=active]:text-blue-700 px-4 py-2 gap-2"><Heart className="w-4 h-4"/> Yêu thích</TabsTrigger>
                 <TabsTrigger value="feedback" className="data-[state=active]:bg-blue-50 data-[state=active]:text-blue-700 px-4 py-2 gap-2"><Star className="w-4 h-4"/> Đánh giá về tôi</TabsTrigger>
                 <TabsTrigger value="settings" className="data-[state=active]:bg-blue-50 data-[state=active]:text-blue-700 px-4 py-2 gap-2"><Settings className="w-4 h-4"/> Cài đặt</TabsTrigger>
@@ -204,45 +183,7 @@ export function ProfilePage({ onNavigate }: ProfilePageProps) {
             </TabsList>
           </div>
 
-          {/* TAB: ĐANG ĐẤU GIÁ */}
-          <TabsContent value="bids" className="outline-none">
-             <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
-                 <div className="overflow-x-auto">
-                     <table className="w-full min-w-[600px]">
-                         <thead className="bg-gray-50 border-b border-gray-200">
-                             <tr>
-                                 <th className="px-6 py-4 text-left text-xs font-bold text-gray-500 uppercase tracking-wider">Sản phẩm</th>
-                                 <th className="px-6 py-4 text-right text-xs font-bold text-gray-500 uppercase tracking-wider">Giá hiện tại</th>
-                                 <th className="px-6 py-4 text-right text-xs font-bold text-gray-500 uppercase tracking-wider">Giá bạn đặt</th>
-                             </tr>
-                         </thead>
-                         <tbody className="divide-y divide-gray-100">
-                             {activeBids.length > 0 ? paginate(activeBids, pageBids).map(p => (
-                                 <tr key={p.id} className="hover:bg-gray-50 transition-colors cursor-pointer" onClick={() => onNavigate("auction", p.id)}>
-                                     <td className="px-6 py-4 align-middle">
-                                         <div className="flex items-center gap-4">
-                                             <div className="w-12 h-12 rounded border bg-gray-100 overflow-hidden shrink-0"><ImageWithFallback src={p.image || ""} className="w-full h-full object-cover"/></div>
-                                             <div className="min-w-0">
-                                                 <div className="font-semibold text-gray-900 truncate max-w-[250px]">{p.name}</div>
-                                                 <span className="text-[10px] bg-blue-100 text-blue-700 px-2 py-0.5 rounded mt-1 inline-block">Đang diễn ra</span>
-                                             </div>
-                                         </div>
-                                     </td>
-                                     <td className="px-6 py-4 align-middle text-right font-bold text-gray-900">${Number(p.current_price).toLocaleString()}</td>
-                                     {/* my_highest_bid lấy từ query getMyBid trong bidder.service.ts đã merge */}
-                                     <td className="px-6 py-4 align-middle text-right font-medium text-blue-600">${Number((p as any).my_highest_bid || 0).toLocaleString()}</td>
-                                 </tr>
-                             )) : (
-                                 <tr><td colSpan={3} className="px-6 py-12 text-center text-gray-500">Không có sản phẩm đang đấu giá.</td></tr>
-                             )}
-                         </tbody>
-                     </table>
-                 </div>
-                 {activeBids.length > ITEMS_PER_PAGE && <PaginationBar currentPage={pageBids} totalItems={activeBids.length} onPageChange={setPageBids} />}
-             </div>
-          </TabsContent>
-
-          {/* TAB: ĐÃ THẮNG */}
+          {/* TAB: ĐÃ THẮNG - CĂN GIỮA (CENTER ALIGN) */}
           <TabsContent value="won" className="outline-none">
              <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
                  <div className="overflow-x-auto">
@@ -296,18 +237,48 @@ export function ProfilePage({ onNavigate }: ProfilePageProps) {
              </div>
           </TabsContent>
 
+          {/* TAB: ĐANG ĐẤU GIÁ - CĂN CHỈNH */}
+          <TabsContent value="bids" className="outline-none">
+             <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
+                 <div className="overflow-x-auto">
+                     <table className="w-full min-w-[600px]">
+                         <thead className="bg-gray-50 border-b border-gray-200">
+                             <tr>
+                                 <th className="px-6 py-4 text-left text-xs font-bold text-gray-500 uppercase tracking-wider">Sản phẩm</th>
+                                 <th className="px-6 py-4 text-right text-xs font-bold text-gray-500 uppercase tracking-wider">Giá hiện tại</th>
+                                 <th className="px-6 py-4 text-right text-xs font-bold text-gray-500 uppercase tracking-wider">Giá bạn đặt</th>
+                             </tr>
+                         </thead>
+                         <tbody className="divide-y divide-gray-100">
+                             {activeBids.length > 0 ? paginate(activeBids, pageBids).map(p => (
+                                 <tr key={p.id} className="hover:bg-gray-50 transition-colors cursor-pointer" onClick={() => onNavigate("auction", p.id)}>
+                                     <td className="px-6 py-4 align-middle">
+                                         <div className="flex items-center gap-4">
+                                             <div className="w-12 h-12 rounded border bg-gray-100 overflow-hidden shrink-0"><ImageWithFallback src={p.image || ""} className="w-full h-full object-cover"/></div>
+                                             <div className="min-w-0">
+                                                 <div className="font-semibold text-gray-900 truncate max-w-[250px]">{p.name}</div>
+                                                 <span className="text-[10px] bg-blue-100 text-blue-700 px-2 py-0.5 rounded mt-1 inline-block">Đang diễn ra</span>
+                                             </div>
+                                         </div>
+                                     </td>
+                                     <td className="px-6 py-4 align-middle text-right font-bold text-gray-900">${Number(p.current_price).toLocaleString()}</td>
+                                     <td className="px-6 py-4 align-middle text-right font-medium text-blue-600">${Number((p as any).my_highest_bid || 0).toLocaleString()}</td>
+                                 </tr>
+                             )) : (
+                                 <tr><td colSpan={3} className="px-6 py-12 text-center text-gray-500">Không có sản phẩm đang đấu giá.</td></tr>
+                             )}
+                         </tbody>
+                     </table>
+                 </div>
+                 {activeBids.length > ITEMS_PER_PAGE && <PaginationBar currentPage={pageBids} totalItems={activeBids.length} onPageChange={setPageBids} />}
+             </div>
+          </TabsContent>
+
           {/* TAB: WATCHLIST */}
           <TabsContent value="watchlist" className="outline-none">
              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
                  {watchlist.map(p => (
-                    <ProductCard 
-                        key={p.id} 
-                        {...p} 
-                        price={Number(p.current_price || p.start_price)} 
-                        category="Watchlist" 
-                        image={p.image || (p.images && p.images[0]) || ""} 
-                        onViewDetails={(id) => onNavigate("auction", id)} 
-                    />
+                    <ProductCard key={p.id} {...p} price={Number(p.current_price || p.start_price)} category="Watchlist" image={p.image || p.images?.[0] || ""} onViewDetails={(id) => onNavigate("auction", id)} />
                  ))}
                  {watchlist.length === 0 && <div className="col-span-full py-16 text-center text-gray-500 bg-white rounded-xl border border-dashed border-gray-200">Danh sách theo dõi trống.</div>}
              </div>
@@ -340,7 +311,7 @@ export function ProfilePage({ onNavigate }: ProfilePageProps) {
               </div>
           </TabsContent>
 
-          {/* TAB: SETTINGS */}
+          {/* TAB: SETTINGS (INPUT VIỀN RÕ RÀNG) */}
           <TabsContent value="settings" className="outline-none">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
                   <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-200">
@@ -370,7 +341,7 @@ export function ProfilePage({ onNavigate }: ProfilePageProps) {
           {user?.user_type === 'seller' && (
             <TabsContent value="my-products" className="outline-none">
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
-                    {myProducts.map(p => <ProductCard key={p.id} {...p} price={Number(p.current_price)} category="Kho hàng" image={p.image || (p.images && p.images[0]) || ""} onViewDetails={(id) => onNavigate("auction", id)} />)}
+                    {myProducts.map(p => <ProductCard key={p.id} {...p} price={Number(p.current_price)} category="Kho hàng" image={p.image || p.images?.[0] || ""} onViewDetails={(id) => onNavigate("auction", id)} />)}
                     {myProducts.length === 0 && <div className="col-span-full py-16 text-center text-gray-500 bg-white rounded-xl border border-dashed border-gray-200">Kho hàng trống.</div>}
                 </div>
             </TabsContent>
@@ -378,7 +349,7 @@ export function ProfilePage({ onNavigate }: ProfilePageProps) {
         </Tabs>
       </div>
 
-      {/* --- FIXED PORTAL MODAL (RATING) --- */}
+      {/* --- FIXED PORTAL MODAL (CĂN GIỮA TUYỆT ĐỐI) --- */}
       {ratingModalOpen && createPortal(
         <div 
             style={{ position: 'fixed', top: 0, left: 0, width: '100%', height: '100%', zIndex: 99999, display: 'flex', alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(4px)' }}
@@ -419,7 +390,6 @@ export function ProfilePage({ onNavigate }: ProfilePageProps) {
   );
 }
 
-// Component Pagination Bar
 const PaginationBar = ({currentPage, totalItems, onPageChange}: {currentPage: number, totalItems: number, onPageChange: any}) => {
     const totalPages = Math.ceil(totalItems / ITEMS_PER_PAGE);
     return (
