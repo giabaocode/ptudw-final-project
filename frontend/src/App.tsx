@@ -17,12 +17,29 @@ import { SellerProfilePage } from "./components/SellerProfilePage";
 import { VerifyPage } from "./components/VerifyPage";
 import { ForgotPasswordPage } from "./components/ForgotPasswordPage";
 import { ResetPasswordPage } from "./components/ResetPasswordPage";
+import { useEffect } from "react";
 // Component Wrapper để lấy AuthContext trong App
 const AppContent = () => {
   const [currentPage, setCurrentPage] = useState("landing");
   const [currentId, setCurrentId] = useState<number | null>(null);
   const [categoryId, setCategoryId] = useState<number | null>(null);
   const { isLoggedIn } = useAuth();
+
+  useEffect(() => {
+    // 1. Phân tích URL hiện tại
+    const params = new URLSearchParams(window.location.search);
+    const pageParam = params.get("page");
+    const idParam = params.get("id");
+
+    if (pageParam && idParam) {
+      // 2. Nếu có params, set state để chuyển trang ngay lập tức
+      setCurrentPage(pageParam);
+      setCurrentId(Number(idParam));
+      
+      // 3. (Tuỳ chọn) Xóa query params trên thanh địa chỉ cho đẹp
+      // window.history.replaceState({}, document.title, "/");
+    }
+  }, []);
 
   // State mới cho search
   const [searchQuery, setSearchQuery] = useState<string>("");

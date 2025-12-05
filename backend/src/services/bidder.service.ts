@@ -1,5 +1,5 @@
 import pool from "../utils/db";
-
+import { sendQuestionNotificationEmail } from "../utils/email";
 // 1. RA GIÁ (BID)
 export const placeBid = async (
   bidderId: number,
@@ -332,9 +332,38 @@ export const postQuestion = async (
   productId: number,
   text: string
 ) => {
-  await pool.query(
-    `INSERT INTO Product_Questions (product_id, user_id, question_text) VALUES ($1, $2, $3)`,
-    [productId, userId, text]
-  );
-  return { message: "Đã gửi câu hỏi thành công!" };
+  const client = await pool.connect();
+  try {
+    // 1. Lưu câu hỏi vào DB
+    await client.query(
+      `INSERT INTO Product_Questions (product_id, user_id, question_text) VALUES ($1, $2, $3)`,
+      [productId, userId, text]
+    );
+
+    // 2. Lấy thông tin Email người bán và Tên sản phẩm
+    const infoRes = await client.query(
+      `SELECT p.name as product_name, u.email as seller_email
+       FROM Products p
+       JOIN Users u ON p.seller_id = u.id
+       WHERE p.id = $1`,
+      [productId]
+    );
+
+    if (infoRes.rows.length > 0) {
+      const { product_name, seller_email } = infoRes.rows[0];
+      
+      // Tạo link trỏ về trang chi tiết sản phẩm ở Frontend (Giả sử FE chạy port 3000)
+      // Bạn nên đưa URL gốc vào biến môi trường (process.env.FRONTEND_URL) thì tốt hơn
+      const frontendUrl = process.env.FRONTEND_URL || "http://localhost:3000";
+      const productLink = `${frontendUrl}/?page=auction&id=${productId}`; // Hoặc /auction/${productId} tùy route FE
+
+      // 3. Gửi email (Không await để tránh làm chậm response của User)
+      sendQuestionNotificationEmail(seller_email, product_name, text, productLink)
+        .catch(err => console.error("Background email error:", err));
+    }
+
+    return { message: "Đã gửi câu hỏi thành công!" };
+  } finally {
+    client.release();
+  }
 };

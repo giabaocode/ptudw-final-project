@@ -10,7 +10,7 @@ import { toast } from "sonner";
 import { User } from "../types";
 
 interface LoginPageProps {
-  onNavigate: (page: string) => void;
+  onNavigate: (page: string, id?: number) => void;
 }
 
 export function LoginPage({ onNavigate }: LoginPageProps) {
@@ -32,9 +32,16 @@ export function LoginPage({ onNavigate }: LoginPageProps) {
 
       toast.success("Đăng nhập thành công!");
 
-      // --- [SỬA TẠI ĐÂY] ---
-      // Chuyển hướng về trang Profile thay vì Dashboard
-      onNavigate("profile");
+      const params = new URLSearchParams(window.location.search);
+      const pageParam = params.get("page");
+      const idParam = params.get("id");
+
+      if (pageParam === 'auction' && idParam) {
+         // Nếu trên URL vẫn còn tham số auction, ưu tiên chuyển về đó
+         onNavigate('auction', Number(idParam));
+      } else {
+         onNavigate("profile");
+      }
       // ---------------------
     } catch (error: any) {
       console.error("Login failed:", error);
