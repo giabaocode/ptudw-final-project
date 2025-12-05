@@ -5,6 +5,8 @@ import {
   getProductById,
   getHomepageTops,
   searchProducts,
+  getQuestions,
+  getSellerReviews,
 } from "../controllers/public.controller";
 // Thêm dòng này
 import { getSellerProfile } from "../controllers/public.controller";
@@ -26,5 +28,10 @@ router.get("/products/:id", getProductById);
 router.get("/sellers/:id", getSellerProfile);
 
 router.get("/products/:id/bid-history", getBidHistory);
+
+// --- [THÊM ROUTES MỚI] ---
+router.get("/products/:id/questions", getQuestions);
+router.get("/sellers/:id/reviews", getSellerReviews);
+// -------------------------
 
 export default router;

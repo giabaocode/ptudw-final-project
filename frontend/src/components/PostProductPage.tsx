@@ -1,5 +1,3 @@
-// File: frontend/src/components/PostProductPage.tsx
-// (Giữ nguyên các import)
 import React from "react";
 import { useForm } from "react-hook-form";
 import { Button } from "./ui/button";
@@ -25,21 +23,29 @@ export function PostProductPage({ onNavigate }: PostProductPageProps) {
 
   const onSubmit = async (data: any) => {
     try {
-      // Chuyển đổi dữ liệu
+      // 1. Logic tách chuỗi ảnh thông minh (Hỗ trợ xuống dòng hoặc dấu phẩy)
+      const imagesArray = data.images_url
+        .split(/[\n,]+/) 
+        .map((url: string) => url.trim())
+        .filter((url: string) => url !== "");
+
+      if (imagesArray.length < 1) {
+        toast.error("Vui lòng nhập ít nhất 1 link ảnh");
+        return;
+      }
+
+      // 2. Tạo payload gửi xuống Backend
       const payload = {
         name: data.name,
         start_price: Number(data.start_price),
         step_price: Number(data.step_price),
         buy_now_price: data.buy_now_price ? Number(data.buy_now_price) : null,
-        end_at: data.end_at, // datetime-local string
+        end_at: data.end_at,
         description: data.description,
         category_id: Number(data.category_id),
-        // Tách chuỗi ảnh bằng dấu phẩy thành mảng
-        images: data.images_url
-          .split(",")
-          .map((url: string) => url.trim())
-          .filter((url: string) => url !== ""),
-        allow_new_bidders: data.allow_new_bidders, // Mặc định cho phép người dùng mới đấu giá
+        images: imagesArray, 
+        // Thêm trường này từ nhánh test-2
+        allow_new_bidders: data.allow_new_bidders, 
       };
 
       await axios.post("/api/seller/products", payload, {
@@ -47,7 +53,10 @@ export function PostProductPage({ onNavigate }: PostProductPageProps) {
       });
 
       toast.success("Đăng sản phẩm thành công!");
-      onNavigate("dashboard"); // Hoặc về trang profile
+      
+      // Chuyển hướng về Profile
+      onNavigate("profile");
+
     } catch (error: any) {
       console.error(error);
       toast.error(error.response?.data?.message || "Lỗi khi đăng sản phẩm");
@@ -63,113 +72,85 @@ export function PostProductPage({ onNavigate }: PostProductPageProps) {
           </CardHeader>
           <CardContent>
             <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
+              
               {/* Tên SP */}
               <div>
                 <Label htmlFor="name">Tên sản phẩm</Label>
                 <Input
                   id="name"
-                  type="text" // Thêm type rõ ràng
-                  placeholder="Nhập tên sản phẩm"
-                  {...register("name", { 
-                    required: "Tên sản phẩm là bắt buộc",
-                    minLength: { value: 3, message: "Tên phải dài hơn 3 ký tự" }
-                  })}
+                  placeholder="Ví dụ: iPhone 15 Pro Max Titanium"
+                  {...register("name", { required: "Tên sản phẩm là bắt buộc" })}
                 />
-                {errors.name && (
-                  <p className="text-red-500 text-sm">
-                    {String(errors.name.message)}
-                  </p>
-                )}
+                {errors.name && <p className="text-red-500 text-sm mt-1">{String(errors.name.message)}</p>}
               </div>
 
-              {/* Danh mục (Tạm thời nhập ID, sau này làm Select) */}
+              {/* Danh mục */}
               <div>
-                <Label htmlFor="category_id">
-                  ID Danh mục (VD: 1=Điện thoại, 3=Đồng hồ)
-                </Label>
+                <Label htmlFor="category_id">ID Danh mục</Label>
                 <Input
                   id="category_id"
                   type="number"
-                  {...register("category_id", { required: "Bắt buộc" })}
+                  placeholder="VD: 1 (Điện thoại), 2 (Laptop)..."
+                  {...register("category_id", { required: true })}
                 />
               </div>
 
               {/* Giá */}
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <Label htmlFor="start_price">Giá khởi điểm</Label>
-                  <Input
-                    id="start_price"
-                    type="number"
-                    {...register("start_price", { required: true })}
-                  />
+                  <Label htmlFor="start_price">Giá khởi điểm ($)</Label>
+                  <Input id="start_price" type="number" {...register("start_price", { required: true })} />
                 </div>
                 <div>
-                  <Label htmlFor="step_price">Bước giá</Label>
-                  <Input
-                    id="step_price"
-                    type="number"
-                    {...register("step_price", { required: true })}
-                  />
+                  <Label htmlFor="step_price">Bước giá ($)</Label>
+                  <Input id="step_price" type="number" {...register("step_price", { required: true })} />
                 </div>
               </div>
 
               <div>
                 <Label htmlFor="buy_now_price">Giá mua ngay (Tùy chọn)</Label>
-                <Input
-                  id="buy_now_price"
-                  type="number"
-                  {...register("buy_now_price")}
-                />
+                <Input id="buy_now_price" type="number" {...register("buy_now_price")} />
               </div>
 
               {/* Thời gian */}
               <div>
                 <Label htmlFor="end_at">Ngày kết thúc</Label>
-                <Input
-                  id="end_at"
-                  type="datetime-local"
-                  {...register("end_at", { required: true })}
-                />
+                <Input id="end_at" type="datetime-local" {...register("end_at", { required: true })} />
               </div>
 
               {/* Mô tả */}
               <div>
                 <Label htmlFor="description">Mô tả chi tiết</Label>
-                <Textarea
-                  id="description"
-                  className="h-32"
-                  {...register("description", { required: true })}
-                />
+                <Textarea id="description" className="h-32" placeholder="Mô tả tình trạng, xuất xứ, bảo hành..." {...register("description", { required: true })} />
               </div>
 
-              {/* Ảnh (Nhập URL) */}
+              {/* Input ảnh (Textarea nhiều dòng) */}
               <div>
-                <Label htmlFor="images_url">
-                  Link ảnh (Cách nhau bằng dấu phẩy)
-                </Label>
-                <Input
+                <Label htmlFor="images_url">Danh sách Link ảnh (Tối thiểu 3 ảnh)</Label>
+                <Textarea
                   id="images_url"
-                  placeholder="https://anh1.jpg, https://anh2.jpg"
+                  className="h-32 font-mono text-sm"
+                  placeholder={`https://anh1.com/a.jpg\nhttps://anh2.com/b.jpg\nhttps://anh3.com/c.jpg`}
                   {...register("images_url", { required: true })}
                 />
-                <p className="text-xs text-gray-500 mt-1">
-                  Copy link ảnh từ Google/Unsplash rồi dán vào đây.
+                <p className="text-xs text-gray-500 mt-2">
+                  * Mẹo: Nhập mỗi link ảnh trên một dòng hoặc cách nhau bằng dấu phẩy.
                 </p>
               </div>
-              
+
+              {/* --- TÙY CHỌN CHO PHÉP NGƯỜI MỚI (Từ nhánh test-2) --- */}
               <div className="flex items-center space-x-2 border p-4 rounded-lg bg-gray-50">
                 <input 
                   type="checkbox" 
                   id="allow_new_bidders"
-                  className="w-5 h-5 text-blue-600 rounded focus:ring-blue-500 border-gray-300"
-                  {...register("allow_new_bidders")} // Đăng ký với react-hook-form
-                  defaultChecked={true} // Mặc định nên để true (cho phép)
+                  className="w-5 h-5 text-blue-600 rounded focus:ring-blue-500 border-gray-300 cursor-pointer"
+                  {...register("allow_new_bidders")} 
+                  defaultChecked={true} 
                 />
                 <div className="grid gap-1.5 leading-none">
                   <Label 
                     htmlFor="allow_new_bidders" 
-                    className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
+                    className="text-sm font-medium leading-none cursor-pointer"
                   >
                     Cho phép người mua mới (chưa có đánh giá) tham gia đấu giá?
                   </Label>
@@ -178,13 +159,9 @@ export function PostProductPage({ onNavigate }: PostProductPageProps) {
                   </p>
                 </div>
               </div>
+              {/* ----------------------------------------------------- */}
 
-
-              <Button
-                type="submit"
-                className="w-full bg-[#0A84FF]"
-                disabled={isSubmitting}
-              >
+              <Button type="submit" className="w-full bg-[#0A84FF] hover:bg-[#0070E0]" disabled={isSubmitting}>
                 {isSubmitting ? "Đang xử lý..." : "Đăng Sản Phẩm"}
               </Button>
             </form>

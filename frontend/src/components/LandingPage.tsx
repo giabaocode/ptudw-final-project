@@ -1,4 +1,3 @@
-// File: frontend/src/components/LandingPage.tsx
 import {
   Search,
   Clock,
@@ -10,7 +9,6 @@ import {
 import { Button } from "./ui/button";
 import { Input } from "./ui/input";
 import { ProductCard } from "./ProductCard";
-import { AuctionCard } from "./AuctionCard";
 import { useState, useEffect } from "react";
 import axios from "axios";
 import { Product, Auction } from "../types";
@@ -21,7 +19,7 @@ import {
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from "./ui/select"; // Cần component Select từ shadcn/ui
+} from "./ui/select";
 
 import { useAuth } from "../context/AuthContext";
 import { toast } from "sonner";
@@ -29,10 +27,11 @@ import { toast } from "sonner";
 interface LandingPageProps {
   onNavigate: (page: string, id?: number) => void;
   categoryId?: number | null;
-  searchQuery?: string; // Prop mới
+  searchQuery?: string;
+  onSearch?: (query: string) => void;
 }
 
-const ITEMS_PER_PAGE = 8; // Số sản phẩm trên mỗi trang
+const ITEMS_PER_PAGE = 8;
 
 const SkeletonCard = () => (
   <div className="space-y-3 bg-white rounded-xl p-4 shadow-sm">
@@ -43,7 +42,6 @@ const SkeletonCard = () => (
   </div>
 );
 
-// Component Phân trang tái sử dụng
 const PaginationControls = ({
   currentPage,
   totalPages,
@@ -54,7 +52,6 @@ const PaginationControls = ({
   onPageChange: (page: number) => void;
 }) => {
   if (totalPages <= 1) return null;
-
   return (
     <div className="flex justify-center items-center gap-2 mt-8">
       <Button
@@ -86,31 +83,28 @@ export function LandingPage({
   onNavigate,
   categoryId,
   searchQuery,
+  onSearch,
 }: LandingPageProps) {
-  // --- STATE CHO TRANG CHỦ ---
   const [topEndingSoon, setTopEndingSoon] = useState<Auction[]>([]);
   const [topMostBids, setTopMostBids] = useState<Auction[]>([]);
   const [topHighestPrice, setTopHighestPrice] = useState<Product[]>([]);
-
-  // --- STATE CHO TRANG DANH MỤC ---
   const [categoryAuctions, setCategoryAuctions] = useState<Auction[]>([]);
   const [categoryProducts, setCategoryProducts] = useState<Product[]>([]);
-
-  // State phân trang
   const [auctionPage, setAuctionPage] = useState(1);
   const [productPage, setProductPage] = useState(1);
-
-  // State cho Search
   const [searchResults, setSearchResults] = useState<Product[]>([]);
   const [searchPage, setSearchPage] = useState(1);
   const [searchTotalPages, setSearchTotalPages] = useState(1);
-  const [sortOption, setSortOption] = useState("default"); // default, time_desc, price_asc
-
+  const [sortOption, setSortOption] = useState("default");
   const [loading, setLoading] = useState(true);
 
+  // --- [1] TỪ NHÁNH TEST-2: XỬ LÝ WATCHLIST ---
   const { isLoggedIn, token } = useAuth();
-  
-  const handleAddToWatchlist = async (productId: number) => {
+
+  const handleAddToWatchlist = async (e: React.MouseEvent, productId: number) => {
+    e.preventDefault(); // Ngăn chuyển trang
+    e.stopPropagation();
+
     if (!isLoggedIn) {
       toast.error("Vui lòng đăng nhập để thêm vào danh sách theo dõi.");
       onNavigate("login");
@@ -118,35 +112,41 @@ export function LandingPage({
     }
     try {
       await axios.post(
-        `/api/bidder/products/${productId}/watchlist`,{}, {headers: {Authorization: `Bearer ${token}`}}
+        `/api/bidder/products/${productId}/watchlist`,
+        {},
+        { headers: { Authorization: `Bearer ${token}` } }
       );
       toast.success("Đã thêm vào danh sách theo dõi!");
-    }catch (error : any) {
+    } catch (error: any) {
       if (error.response && error.response.status === 409) {
         toast.info("Sản phẩm đã có trong danh sách theo dõi của bạn.");
-        return;
-      }else{
+      } else {
         console.error("Lỗi khi thêm vào danh sách theo dõi:", error);
         toast.error("Thêm vào danh sách theo dõi thất bại.");
       }
-  }
-  }
+    }
+  };
+  // --------------------------------------------
+
+  // --- [2] TỪ NHÁNH PAGINATION: TÌM KIẾM HERO ---
+  const [heroKeyword, setHeroKeyword] = useState("");
+
+  const handleHeroSearch = () => {
+    if (onSearch && heroKeyword.trim()) {
+      onSearch(heroKeyword);
+    }
+  };
+  // ----------------------------------------------
 
   useEffect(() => {
     const fetchData = async () => {
       setLoading(true);
-      // Reset trang về 1 khi đổi danh mục
       setAuctionPage(1);
       setProductPage(1);
 
       try {
         let response;
-
         if (searchQuery) {
-          // --- LOGIC SEARCH ---
-          console.log(
-            `Searching: ${searchQuery}, Sort: ${sortOption}, Page: ${searchPage}`
-          );
           response = await axios.get(`/api/products/search`, {
             params: {
               q: searchQuery,
@@ -157,40 +157,28 @@ export function LandingPage({
           });
           setSearchResults(response.data.products);
           setSearchTotalPages(response.data.pagination.total_pages);
-
-          // Reset các state khác để UI không bị lẫn
           setCategoryAuctions([]);
           setCategoryProducts([]);
           setTopEndingSoon([]);
         } else if (categoryId) {
-          console.log("Đang tải danh mục ID:", categoryId);
-          // Lấy 100 sản phẩm để có dữ liệu phân trang client-side
           response = await axios.get(
             `/api/products?category_id=${categoryId}&limit=100`
           );
           const allItems = response.data.products;
-
-          // Lọc ra các món đang còn hạn đấu giá
           const activeAuctions = allItems.filter(
             (p: any) => new Date(p.end_at) > new Date()
           );
-
           setCategoryAuctions(activeAuctions);
           setCategoryProducts(allItems);
-
-          // Reset state trang chủ
           setTopEndingSoon([]);
           setTopMostBids([]);
           setTopHighestPrice([]);
         } else {
-          // Trang chủ
           response = await axios.get("/api/products/homepage-tops");
           const data = response.data;
-
           setTopEndingSoon(data.top_ending_soon);
           setTopMostBids(data.top_most_bids);
           setTopHighestPrice(data.top_highest_price);
-
           setCategoryAuctions([]);
           setCategoryProducts([]);
         }
@@ -201,15 +189,13 @@ export function LandingPage({
       }
     };
     fetchData();
-  }, [categoryId, searchQuery, searchPage, sortOption]); // Thêm dependencies
+  }, [categoryId, searchQuery, searchPage, sortOption]);
 
-  // Logic cắt dữ liệu theo trang
   const currentAuctions = categoryAuctions.slice(
     (auctionPage - 1) * ITEMS_PER_PAGE,
     auctionPage * ITEMS_PER_PAGE
   );
   const totalAuctionPages = Math.ceil(categoryAuctions.length / ITEMS_PER_PAGE);
-
   const currentProducts = categoryProducts.slice(
     (productPage - 1) * ITEMS_PER_PAGE,
     productPage * ITEMS_PER_PAGE
@@ -231,18 +217,15 @@ export function LandingPage({
     );
   }
 
-  // --- RENDER GIAO DIỆN SEARCH ---
   if (searchQuery) {
     return (
       <div className="min-h-screen bg-[#F5F5F7] px-4 sm:px-6 lg:px-8 py-8">
         <div className="max-w-7xl mx-auto">
-          {/* Header kết quả tìm kiếm + Filter */}
           <div className="flex flex-col md:flex-row justify-between items-center mb-8 gap-4">
             <h2 className="text-2xl font-bold text-gray-900">
               Kết quả tìm kiếm cho:{" "}
               <span className="text-[#0A84FF]">"{searchQuery}"</span>
             </h2>
-
             <div className="flex items-center gap-2">
               <span className="text-sm text-gray-600">Sắp xếp:</span>
               <Select value={sortOption} onValueChange={setSortOption}>
@@ -259,8 +242,6 @@ export function LandingPage({
               </Select>
             </div>
           </div>
-
-          {/* Grid Sản phẩm */}
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
             {searchResults.map((product) => (
               <ProductCard
@@ -278,20 +259,21 @@ export function LandingPage({
                     ? product.images[0]
                     : ""
                 }
-                // Props mới
                 buyNowPrice={
                   product.buy_now_price
                     ? Number(product.buy_now_price)
                     : undefined
                 }
-                bidderName={product.bidder_name || undefined}
+                bidderName={product.bidder_name}
                 createdAt={product.created_at}
+                categoryId={product.category_id}
+                onCategoryClick={(id) => onNavigate("categories", id)}
                 onViewDetails={(id) => onNavigate("product", id)}
+                // Truyền hàm Watchlist vào đây
+                onAddToWatchlist={(e) => handleAddToWatchlist(e, product.id)}
               />
             ))}
           </div>
-
-          {/* Empty State */}
           {searchResults.length === 0 && (
             <div className="text-center py-20 bg-white rounded-xl shadow-sm">
               <Search className="h-12 w-12 text-gray-300 mx-auto mb-4" />
@@ -300,8 +282,6 @@ export function LandingPage({
               </p>
             </div>
           )}
-
-          {/* Pagination */}
           <PaginationControls
             currentPage={searchPage}
             totalPages={searchTotalPages}
@@ -314,7 +294,6 @@ export function LandingPage({
 
   return (
     <div className="min-h-screen bg-[#F5F5F7]">
-      {/* 1. HERO SECTION */}
       {!categoryId && (
         <section className="bg-gradient-to-br from-[#0A84FF] to-[#0066CC] text-white py-16 px-4 mb-8">
           <div className="max-w-7xl mx-auto text-center">
@@ -330,9 +309,15 @@ export function LandingPage({
                 <Input
                   placeholder="Tìm kiếm sản phẩm..."
                   className="pl-10 h-12 bg-white text-gray-900"
+                  value={heroKeyword}
+                  onChange={(e) => setHeroKeyword(e.target.value)}
+                  onKeyDown={(e) => e.key === "Enter" && handleHeroSearch()}
                 />
               </div>
-              <Button className="h-12 px-8 bg-[#FFD700] text-gray-900 hover:bg-[#FFD700]/90 font-medium">
+              <Button
+                onClick={handleHeroSearch}
+                className="h-12 px-8 bg-[#FFD700] text-gray-900 hover:bg-[#FFD700]/90 font-medium"
+              >
                 Tìm kiếm
               </Button>
             </div>
@@ -340,10 +325,8 @@ export function LandingPage({
         </section>
       )}
 
-      {/* 2. NỘI DUNG TRANG CHỦ */}
       {!categoryId && (
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 space-y-16 pb-16">
-          {/* Top 5 Sắp kết thúc */}
           {topEndingSoon.length > 0 && (
             <section>
               <div className="flex items-center gap-2 mb-12">
@@ -354,7 +337,7 @@ export function LandingPage({
               </div>
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-6">
                 {topEndingSoon.map((auction) => (
-                  <AuctionCard
+                  <ProductCard
                     key={auction.id}
                     id={auction.id}
                     name={auction.name}
@@ -364,21 +347,25 @@ export function LandingPage({
                         : ""
                     }
                     bidCount={auction.bid_count || 0}
-                    currentBid={
+                    price={
                       Number(auction.current_price) > 0
                         ? Number(auction.current_price)
                         : Number(auction.start_price)
                     }
-                    endTime={new Date(auction.end_at)}
+                    endTime={auction.end_at}
+                    category={auction.category || ""}
+                    buyNowPrice={auction.buy_now_price}
+                    createdAt={auction.created_at}
+                    bidderName={auction.bidder_name}
+                    categoryId={auction.category_id}
+                    onCategoryClick={(id) => onNavigate("categories", id)}
                     onViewDetails={(id) => onNavigate("auction", id)}
-                    onAddToWatchlist={handleAddToWatchlist}
+                    onAddToWatchlist={(e) => handleAddToWatchlist(e, auction.id)}
                   />
                 ))}
               </div>
             </section>
           )}
-
-          {/* Top 5 Nhiều lượt ra giá nhất */}
           {topMostBids.length > 0 && (
             <section>
               <div className="flex items-center gap-2 mb-12">
@@ -389,7 +376,7 @@ export function LandingPage({
               </div>
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-6">
                 {topMostBids.map((auction) => (
-                  <AuctionCard
+                  <ProductCard
                     key={auction.id}
                     id={auction.id}
                     name={auction.name}
@@ -399,21 +386,25 @@ export function LandingPage({
                         : ""
                     }
                     bidCount={auction.bid_count || 0}
-                    currentBid={
+                    price={
                       Number(auction.current_price) > 0
                         ? Number(auction.current_price)
                         : Number(auction.start_price)
                     }
-                    endTime={new Date(auction.end_at)}
+                    endTime={auction.end_at}
+                    category={auction.category || ""}
+                    buyNowPrice={auction.buy_now_price}
+                    createdAt={auction.created_at}
+                    bidderName={auction.bidder_name}
+                    categoryId={auction.category_id}
+                    onCategoryClick={(id) => onNavigate("categories", id)}
                     onViewDetails={(id) => onNavigate("auction", id)}
-                    onAddToWatchlist={handleAddToWatchlist}
+                    onAddToWatchlist={(e) => handleAddToWatchlist(e, auction.id)}
                   />
                 ))}
               </div>
             </section>
           )}
-
-          {/* Top 5 Giá cao nhất */}
           {topHighestPrice.length > 0 && (
             <section>
               <div className="flex items-center gap-2 mb-12">
@@ -439,8 +430,15 @@ export function LandingPage({
                         ? product.images[0]
                         : ""
                     }
+                    endTime={product.end_at}
+                    bidCount={product.bid_count}
+                    buyNowPrice={product.buy_now_price}
+                    createdAt={product.created_at}
+                    bidderName={product.bidder_name}
+                    categoryId={product.category_id}
+                    onCategoryClick={(id) => onNavigate("categories", id)}
                     onViewDetails={(id) => onNavigate("product", id)}
-                    onAddToWatchlist={handleAddToWatchlist}
+                    onAddToWatchlist={(e) => handleAddToWatchlist(e, product.id)}
                   />
                 ))}
               </div>
@@ -449,10 +447,8 @@ export function LandingPage({
         </div>
       )}
 
-      {/* 3. NỘI DUNG KHI XEM DANH MỤC */}
       {categoryId && (
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 space-y-12 pb-16 pt-8">
-          {/* Mục: Đang đấu giá */}
           {currentAuctions.length > 0 && (
             <section>
               <div className="flex items-center gap-2 mb-12">
@@ -463,28 +459,37 @@ export function LandingPage({
               </div>
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
                 {currentAuctions.map((auction) => (
-                  <AuctionCard
+                  <ProductCard
                     key={auction.id}
                     id={auction.id}
                     name={auction.name}
+                    price={
+                      Number(auction.current_price) > 0
+                        ? Number(auction.current_price)
+                        : Number(auction.start_price)
+                    }
+                    category={auction.category || "Đấu giá"}
                     image={
                       auction.images && auction.images.length > 0
                         ? auction.images[0]
                         : ""
                     }
-                    bidCount={auction.bid_count || 0}
-                    currentBid={
-                      Number(auction.current_price) > 0
-                        ? Number(auction.current_price)
-                        : Number(auction.start_price)
+                    endTime={auction.end_at}
+                    bidCount={auction.bid_count}
+                    bidderName={auction.bidder_name}
+                    buyNowPrice={
+                      auction.buy_now_price
+                        ? Number(auction.buy_now_price)
+                        : undefined
                     }
-                    endTime={new Date(auction.end_at)}
+                    createdAt={auction.created_at}
+                    categoryId={auction.category_id}
+                    onCategoryClick={(id) => onNavigate("categories", id)}
                     onViewDetails={(id) => onNavigate("auction", id)}
+                    onAddToWatchlist={(e) => handleAddToWatchlist(e, auction.id)}
                   />
                 ))}
               </div>
-
-              {/* Thanh phân trang cho Đấu giá */}
               <PaginationControls
                 currentPage={auctionPage}
                 totalPages={totalAuctionPages}
@@ -493,7 +498,6 @@ export function LandingPage({
             </section>
           )}
 
-          {/* Mục: Tất cả sản phẩm */}
           <section>
             <h2 className="text-2xl font-bold text-gray-900 mb-12">
               Tất cả sản phẩm
@@ -515,8 +519,19 @@ export function LandingPage({
                       ? product.images[0]
                       : ""
                   }
+                  endTime={product.end_at}
+                  bidCount={product.bid_count}
+                  bidderName={product.bidder_name}
+                  buyNowPrice={
+                    product.buy_now_price
+                      ? Number(product.buy_now_price)
+                      : undefined
+                  }
+                  createdAt={product.created_at}
+                  categoryId={product.category_id}
+                  onCategoryClick={(id) => onNavigate("categories", id)}
                   onViewDetails={(id) => onNavigate("product", id)}
-                  onAddToWatchlist={handleAddToWatchlist}
+                  onAddToWatchlist={(e) => handleAddToWatchlist(e, product.id)}
                 />
               ))}
 
@@ -535,8 +550,6 @@ export function LandingPage({
                 </div>
               )}
             </div>
-
-            {/* Thanh phân trang cho Tất cả sản phẩm */}
             <PaginationControls
               currentPage={productPage}
               totalPages={totalProductPages}

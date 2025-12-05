@@ -45,6 +45,15 @@ export interface Product {
   bidder_name?: string;
   current_highest_bidder_id?: number;
 
+  // --- [THÊM ĐOẠN NÀY ĐỂ HẾT LỖI] ---
+  current_highest_bidder?: {
+    id: number;
+    full_name: string;
+    rating_plus?: number;
+    rating_minus?: number;
+  } | null;
+  // ---------------------------------
+
   bid_count?: number;
   related_products?: Product[];
 }

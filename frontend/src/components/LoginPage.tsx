@@ -21,21 +21,26 @@ export function LoginPage({ onNavigate }: LoginPageProps) {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
-      const response = await axios.post('/api/auth/login', {
+      const response = await axios.post("/api/auth/login", {
         email,
         password,
       });
-      
+
       const { token, user } = response.data;
-      
-      // Ép kiểu user thành User (lấy từ types.ts)
-      login(token, user as User); 
+
+      login(token, user as User);
 
       toast.success("Đăng nhập thành công!");
-      onNavigate("dashboard");
+
+      // --- [SỬA TẠI ĐÂY] ---
+      // Chuyển hướng về trang Profile thay vì Dashboard
+      onNavigate("profile");
+      // ---------------------
     } catch (error: any) {
       console.error("Login failed:", error);
-      const errorMessage = error.response?.data?.message || "Đăng nhập thất bại. Vui lòng kiểm tra email hoặc mật khẩu.";
+      const errorMessage =
+        error.response?.data?.message ||
+        "Đăng nhập thất bại. Vui lòng kiểm tra email hoặc mật khẩu.";
       toast.error(errorMessage);
     }
   };
@@ -43,20 +48,17 @@ export function LoginPage({ onNavigate }: LoginPageProps) {
   return (
     <div className="min-h-screen bg-[#F5F5F7] flex items-center justify-center px-4 py-12">
       <div className="max-w-md w-full">
-        
-        {/* --- BẮT ĐẦU CARD --- */}
         <div className="bg-white rounded-2xl shadow-lg p-8 border border-gray-100">
-          
-          {/* Header */}
           <div className="text-center mb-8">
             <div className="w-16 h-16 bg-gradient-to-br from-[#0A84FF] to-[#FFD700] rounded-2xl flex items-center justify-center mx-auto mb-4">
               <span className="text-2xl text-white font-bold">AB</span>
             </div>
-            <h1 className="text-3xl font-bold text-gray-900 mb-2">Welcome Back</h1>
+            <h1 className="text-3xl font-bold text-gray-900 mb-2">
+              Welcome Back
+            </h1>
             <p className="text-gray-600">Sign in to your account to continue</p>
           </div>
 
-          {/* Form */}
           <form onSubmit={handleSubmit} className="space-y-6">
             <div>
               <Label htmlFor="email">Email Address</Label>
@@ -102,13 +104,15 @@ export function LoginPage({ onNavigate }: LoginPageProps) {
               </div>
               <button
                 type="button"
+                // Sửa dòng này
+                onClick={() => onNavigate("forgot-password")}
                 className="text-sm text-[#0A84FF] hover:underline font-medium"
               >
                 Forgot password?
               </button>
             </div>
 
-            <Button 
+            <Button
               type="submit"
               className="w-full bg-[#0A84FF] hover:bg-[#0A84FF]/90 h-11 font-medium"
             >
@@ -116,17 +120,17 @@ export function LoginPage({ onNavigate }: LoginPageProps) {
             </Button>
           </form>
 
-          {/* Divider */}
           <div className="relative my-6">
             <div className="absolute inset-0 flex items-center">
               <div className="w-full border-t border-gray-200"></div>
             </div>
             <div className="relative flex justify-center text-sm">
-              <span className="px-2 bg-white text-gray-500 font-medium">Or continue with</span>
+              <span className="px-2 bg-white text-gray-500 font-medium">
+                Or continue with
+              </span>
             </div>
           </div>
 
-          {/* Social Login */}
           <div className="grid grid-cols-2 gap-3">
             <Button variant="outline" type="button" className="font-normal">
               <svg className="w-5 h-5 mr-2" viewBox="0 0 24 24">
@@ -150,14 +154,17 @@ export function LoginPage({ onNavigate }: LoginPageProps) {
               Google
             </Button>
             <Button variant="outline" type="button" className="font-normal">
-              <svg className="w-5 h-5 mr-2" fill="currentColor" viewBox="0 0 24 24">
+              <svg
+                className="w-5 h-5 mr-2"
+                fill="currentColor"
+                viewBox="0 0 24 24"
+              >
                 <path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z" />
               </svg>
               Facebook
             </Button>
           </div>
 
-          {/* Sign Up Link */}
           <div className="mt-6 text-center text-sm text-gray-600">
             Don't have an account?{" "}
             <button
@@ -168,13 +175,8 @@ export function LoginPage({ onNavigate }: LoginPageProps) {
               Sign up
             </button>
           </div>
-
         </div>
-        {/* --- KẾT THÚC CARD --- */} 
-
       </div>
     </div>
   );
 }
-
-  
