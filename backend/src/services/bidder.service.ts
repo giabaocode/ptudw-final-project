@@ -227,6 +227,7 @@ export const getMyWatchList = async (userId: number) => {
         FROM Watchlists w
         JOIN Products p ON w.product_id = p.id
         WHERE w.user_id = $1
+        AND p.end_at > NOW()  -- <--- THÊM DÒNG NÀY: Chỉ lấy sản phẩm chưa kết thúc
         ORDER BY w.created_at DESC`,
     [userId]
   );
@@ -234,16 +235,117 @@ export const getMyWatchList = async (userId: number) => {
   return res.rows;
 };
 
-// Đây là hàm bị thiếu khiến Controller báo lỗi
+// backend/src/services/bidder.service.ts
+
+// backend/src/services/bidder.service.ts
+
 export const getMyBid = async (userId: number) => {
   const res = await pool.query(
-    `SELECT DISTINCT p.*, b.amount as my_bid_amount,
-        (SELECT image_url FROM Product_Images WHERE product_id = p.id AND is_thumbnail = TRUE LIMIT 1) AS image
-        FROM Bids b
-        JOIN Products p ON b.product_id = p.id
-        WHERE b.bidder_id = $1
-        ORDER BY b.created_at DESC`,
+    `SELECT DISTINCT p.*, 
+        (SELECT image_url FROM Product_Images WHERE product_id = p.id LIMIT 1) as image,
+        (SELECT MAX(amount) FROM Bids WHERE product_id = p.id AND bidder_id = $1) as my_highest_bid,
+        u.full_name as seller_name  -- <--- LẤY TÊN NGƯỜI BÁN
+     FROM Bids b
+     JOIN Products p ON b.product_id = p.id
+     JOIN Users u ON p.seller_id = u.id -- <--- JOIN VỚI BẢNG USERS
+     WHERE b.bidder_id = $1 
+     ORDER BY p.end_at DESC`,
     [userId]
   );
   return res.rows;
+};
+
+export const getWonAuctions = async (userId: number) => {
+  const res = await pool.query(`
+    SELECT p.*,
+      (SELECT image_url FROM Product_Images WHERE product_id = p.id LIMIT 1) as image,
+      u.full_name as seller_name
+    FROM Products p
+    JOIN Users u ON p.seller_id = u.id
+    WHERE p.current_highest_bidder_id = $1 
+      AND p.end_at < NOW()
+    ORDER BY p.end_at DESC
+  `, [userId]);
+  return res.rows;
+};
+
+// 2. ĐÁNH GIÁ NGƯỜI BÁN (+1/-1)
+export const rateSeller = async (bidderId: number, productId: number, score: 'positive' | 'negative', comment: string) => {
+  const client = await pool.connect();
+  try {
+    await client.query("BEGIN");
+
+    // A. Kiểm tra xem user có thắng sản phẩm này không
+    const productRes = await client.query(
+      `SELECT id, seller_id, current_highest_bidder_id, current_price, end_at 
+       FROM Products WHERE id = $1`, 
+      [productId]
+    );
+    if (productRes.rows.length === 0) throw new Error("Sản phẩm không tồn tại");
+    const product = productRes.rows[0];
+
+    if (product.current_highest_bidder_id !== bidderId) {
+      throw new Error("Bạn không phải là người thắng sản phẩm này.");
+    }
+    if (new Date(product.end_at) > new Date()) {
+      throw new Error("Phiên đấu giá chưa kết thúc.");
+    }
+
+    // B. Kiểm tra Transaction (Nếu chưa có thì tạo mới để link Rating vào)
+    // Đây là bước xử lý logic "Pending Payment" tự động để cho phép Rating
+    let transId;
+    const transCheck = await client.query(
+      "SELECT id FROM Transactions WHERE product_id = $1", 
+      [productId]
+    );
+
+    if (transCheck.rows.length > 0) {
+      transId = transCheck.rows[0].id;
+    } else {
+      const newTrans = await client.query(
+        `INSERT INTO Transactions (product_id, buyer_id, seller_id, final_price, status)
+         VALUES ($1, $2, $3, $4, 'pending_payment')
+         RETURNING id`,
+        [productId, bidderId, product.seller_id, product.current_price]
+      );
+      transId = newTrans.rows[0].id;
+    }
+
+    // C. Kiểm tra đã đánh giá chưa
+    const rateCheck = await client.query(
+      "SELECT id FROM Ratings WHERE transaction_id = $1 AND rater_id = $2",
+      [transId, bidderId]
+    );
+    if (rateCheck.rows.length > 0) {
+      // Nếu có rồi thì Update
+      await client.query(
+        `UPDATE Ratings SET score = $1, comment = $2 WHERE id = $3`,
+        [score, comment, rateCheck.rows[0].id]
+      );
+    } else {
+      // Nếu chưa thì Insert
+      await client.query(
+        `INSERT INTO Ratings (transaction_id, rater_id, rated_user_id, score, comment)
+         VALUES ($1, $2, $3, $4, $5)`,
+        [transId, bidderId, product.seller_id, score, comment]
+      );
+    }
+
+    // D. Cập nhật điểm số Seller (+1/-1)
+    // Lưu ý: Logic này đơn giản là cộng thẳng. Nếu muốn chuẩn xác (chống spam 1 người rate nhiều lần), nên count từ bảng Ratings.
+    if (score === 'positive') {
+      await client.query("UPDATE Users SET rating_plus = rating_plus + 1 WHERE id = $1", [product.seller_id]);
+    } else {
+      await client.query("UPDATE Users SET rating_minus = rating_minus + 1 WHERE id = $1", [product.seller_id]);
+    }
+
+    await client.query("COMMIT");
+    return { success: true, message: "Đánh giá thành công!" };
+
+  } catch (error) {
+    await client.query("ROLLBACK");
+    throw error;
+  } finally {
+    client.release();
+  }
 };

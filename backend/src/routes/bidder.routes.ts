@@ -1,6 +1,8 @@
 import { Router } from "express";
-import { placeBid, getWatchlist, getMyBids, addToWatchlist } from "../controllers/bidder.controller";
+import { placeBid, getWatchlist, getMyBids, addToWatchlist, getWonAuctions, rateSeller} from "../controllers/bidder.controller";
 import { authenticateToken } from "../utils/auth";
+// Thêm route
+
 
 const router = Router();
 
@@ -13,5 +15,10 @@ router.post("/products/:id/watchlist", authenticateToken, addToWatchlist); // <-
 
 // Route xem bid của tôi
 router.get("/my-bids", authenticateToken, getMyBids);
+router.get('/won-auctions', authenticateToken, getWonAuctions);
+router.post('/products/:id/rate', authenticateToken, rateSeller);
+
+
+
 
 export default router;

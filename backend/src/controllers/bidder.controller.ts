@@ -57,9 +57,33 @@ export const getWatchlist = async (req: Request, res: Response) => {
 export const getMyBids = async (req: Request, res: Response) => {
   try {
     const userId = (req as any).user.id;
-    const list = await bidderService.getMyBid(userId);
+    const list = await bidderService.getMyBid(userId); // <--- Đảm bảo gọi hàm getMyBid
     res.json(list);
   } catch (error: any) {
     res.status(500).json({ message: error.message });
+  }
+};
+
+// backend/src/controllers/bidder.controller.ts
+// Thêm các hàm này:
+export const getWonAuctions = async (req: Request, res: Response) => {
+  try {
+    const userId = (req as any).user.id;
+    const result = await bidderService.getWonAuctions(userId);
+    res.json(result);
+  } catch (error: any) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
+export const rateSeller = async (req: Request, res: Response) => {
+  try {
+    const userId = (req as any).user.id;
+    const productId = parseInt(req.params.id);
+    const { score, comment } = req.body;
+    const result = await bidderService.rateSeller(userId, productId, score, comment);
+    res.json(result);
+  } catch (error: any) {
+    res.status(400).json({ message: error.message });
   }
 };
