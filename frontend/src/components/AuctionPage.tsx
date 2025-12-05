@@ -173,11 +173,20 @@ export function AuctionPage({ onNavigate, auctionId }: AuctionPageProps) {
   const [showConfirmModal, setShowConfirmModal] = useState(false);
   const [modalReady, setModalReady] = useState(false);
   const [pendingBidAmount, setPendingBidAmount] = useState<number | null>(null);
+  const [isBidding, setIsBidding] = useState(false);
+
+  // Ref cho interval để clear khi component unmount hoặc khi chuyển sản phẩm
+  const pollingIntervalRef = useRef<NodeJS.Timeout | null>(null);
+  const isComponentMounted = useRef(true);
 
   const fetchAuctionData = useCallback(async () => {
-    if (!auctionId) return;
+    if (!auctionId || !isComponentMounted.current) return;
+
     try {
       const res = await axios.get(`/api/products/${auctionId}`);
+
+      if (!isComponentMounted.current) return;
+
       setAuction(res.data);
       if (res.data.images && res.data.images.length > 0) {
         setActiveImage(res.data.images[0]);
@@ -193,16 +202,24 @@ export function AuctionPage({ onNavigate, auctionId }: AuctionPageProps) {
         const historyRes = await axios.get(
           `/api/products/${auctionId}/bid-history`
         );
-        setBidHistory(historyRes.data);
+        if (isComponentMounted.current) {
+          setBidHistory(historyRes.data);
+        }
       } catch (e) {
-        setBidHistory([]);
+        if (isComponentMounted.current) {
+          setBidHistory([]);
+        }
       }
 
       try {
         const qRes = await axios.get(`/api/products/${auctionId}/questions`);
-        setQuestions(qRes.data);
+        if (isComponentMounted.current) {
+          setQuestions(qRes.data);
+        }
       } catch (e) {
-        setQuestions([]);
+        if (isComponentMounted.current) {
+          setQuestions([]);
+        }
       }
 
       if (res.data.seller_id) {
@@ -210,24 +227,86 @@ export function AuctionPage({ onNavigate, auctionId }: AuctionPageProps) {
           const rRes = await axios.get(
             `/api/sellers/${res.data.seller_id}/reviews`
           );
-          setReviews(rRes.data);
+          if (isComponentMounted.current) {
+            setReviews(rRes.data);
+          }
         } catch (e) {
-          setReviews([]);
+          if (isComponentMounted.current) {
+            setReviews([]);
+          }
         }
       }
     } catch (error) {
       console.error(error);
-      toast.error("Lỗi tải dữ liệu");
-      onNavigate("landing");
+      if (isComponentMounted.current) {
+        toast.error("Lỗi tải dữ liệu");
+        onNavigate("landing");
+      }
     } finally {
-      setLoading(false);
+      if (isComponentMounted.current) {
+        setLoading(false);
+      }
     }
   }, [auctionId, onNavigate]);
 
   useEffect(() => {
-    setLoading(true);
-    fetchAuctionData();
-  }, [fetchAuctionData]);
+    // Reset và tải dữ liệu mới khi auctionId thay đổi
+    const loadAuctionData = async () => {
+      if (!auctionId) return;
+
+      // Clear polling cũ nếu có
+      if (pollingIntervalRef.current) {
+        clearInterval(pollingIntervalRef.current);
+        pollingIntervalRef.current = null;
+      }
+
+      // Reset state
+      setAuction(null);
+      setBidHistory([]);
+      setQuestions([]);
+      setReviews([]);
+      setActiveImage("");
+      setActiveImageIndex(0);
+      setLoading(true);
+
+      // Fetch dữ liệu
+      await fetchAuctionData();
+
+      // Chỉ bắt đầu polling sau khi dữ liệu đã load xong và component vẫn mounted
+      if (isComponentMounted.current && auctionId) {
+        // Thiết lập polling với khoảng thời gian hợp lý hơn (5 giây)
+        pollingIntervalRef.current = setInterval(() => {
+          if (
+            document.visibilityState === "visible" &&
+            isComponentMounted.current
+          ) {
+            fetchAuctionData();
+          }
+        }, 5000); // 5 giây để giảm tải
+      }
+    };
+
+    loadAuctionData();
+
+    // Cleanup
+    return () => {
+      if (pollingIntervalRef.current) {
+        clearInterval(pollingIntervalRef.current);
+        pollingIntervalRef.current = null;
+      }
+    };
+  }, [auctionId, fetchAuctionData]);
+
+  // Cleanup khi component unmount
+  useEffect(() => {
+    return () => {
+      isComponentMounted.current = false;
+      if (pollingIntervalRef.current) {
+        clearInterval(pollingIntervalRef.current);
+        pollingIntervalRef.current = null;
+      }
+    };
+  }, []);
 
   // Auto focus khi modal sẵn sàng (từ code cần merge)
   useEffect(() => {
@@ -259,7 +338,6 @@ export function AuctionPage({ onNavigate, auctionId }: AuctionPageProps) {
         document.body.style.touchAction = prevTouch || "";
       };
     }
-    // cleanup in case
     return () => {
       document.body.style.overflow = "";
       document.body.style.touchAction = "";
@@ -334,10 +412,11 @@ export function AuctionPage({ onNavigate, auctionId }: AuctionPageProps) {
 
   // Hàm thực hiện đặt giá sau khi xác nhận
   const executeBid = async () => {
-    if (!pendingBidAmount) return;
-    setLoading(true);
+    if (!pendingBidAmount || !auction) return;
+    setIsBidding(true);
 
     try {
+      // Gọi API đặt giá
       await axios.post(
         `/api/bidder/products/${auctionId}/bid`,
         { amount: pendingBidAmount },
@@ -345,16 +424,19 @@ export function AuctionPage({ onNavigate, auctionId }: AuctionPageProps) {
       );
 
       toast.success("Ra giá thành công!");
+
+      // Fetch lại dữ liệu để cập nhật real-time
       await fetchAuctionData();
-      setBidAmount("");
+
+      // Đóng modal
       setShowConfirmModal(false);
+      setPendingBidAmount(null);
     } catch (error: any) {
       console.error("Lỗi ra giá:", error);
       const msg = error.response?.data?.message || "Ra giá thất bại.";
       toast.error(msg);
     } finally {
-      setLoading(false);
-      setShowConfirmModal(false);
+      setIsBidding(false);
     }
   };
 
@@ -373,6 +455,7 @@ export function AuctionPage({ onNavigate, auctionId }: AuctionPageProps) {
       toast.success("Đã gửi câu hỏi!");
       setQuestionText("");
       setQaPage(1);
+      // Cập nhật ngay lập tức
       const qRes = await axios.get(`/api/products/${auctionId}/questions`);
       setQuestions(qRes.data);
     } catch (e) {
@@ -1000,10 +1083,10 @@ export function AuctionPage({ onNavigate, auctionId }: AuctionPageProps) {
                     <button
                       ref={confirmBtnRef}
                       onClick={executeBid}
-                      disabled={loading}
+                      disabled={isBidding}
                       className="bg-[#0A84FF] hover:bg-[#0A84FF]/90 font-bold px-6 py-2 rounded-md shadow-lg shadow-blue-500/20 disabled:opacity-60"
                     >
-                      {loading ? "Đang xử lý..." : "Xác nhận ra giá"}
+                      {isBidding ? "Đang xử lý..." : "Xác nhận ra giá"}
                     </button>
                   </div>
                 </div>
