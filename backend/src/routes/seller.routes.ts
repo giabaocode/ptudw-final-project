@@ -5,6 +5,7 @@ import {
   replyQuestion,
 } from "../controllers/seller.controller";
 import { authenticateToken } from "../utils/auth";
+import { addDescription } from "../controllers/seller.controller";
 
 const router = Router();
 
@@ -17,5 +18,6 @@ router.get("/my-products", authenticateToken, getMyProducts);
 // --- [THÊM ROUTE MỚI] ---
 router.post("/questions/:questionId/reply", authenticateToken, replyQuestion);
 // ------------------------
+router.post("/products/:productId/description", authenticateToken, addDescription);
 
 export default router;

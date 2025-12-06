@@ -98,3 +98,41 @@ export const answerQuestion = async (
 
   return { message: "Đã trả lời câu hỏi" };
 };
+
+export const appendDescription = async(
+  sellerId: number,
+  productId: number,
+  additionalDescription: string
+) => {
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+    const productRes = await client.query(
+      `SELECT id, description FROM Products WHERE id = $1 AND seller_id = $2 FOR UPDATE`,
+    
+      [productId, sellerId]
+    );
+    if (productRes.rows.length === 0) {
+      throw new Error("Sản phẩm không tồn tại hoặc bạn không có quyền chỉnh sửa");
+    }
+    const currentDescription = productRes.rows[0].description || "";
+    const timestamp = new Date().toLocaleString('vi-VN');
+    const appendText = `\n\n<hr />\n<p><strong>[Cập nhật lúc ${timestamp}]:</strong></p>\n${additionalDescription}`;
+
+    await client.query(
+      `UPDATE Products SET description = $1 WHERE id = $2`,
+      [currentDescription + appendText, productId]
+    );
+
+    await client.query(
+      `INSERT INTO Product_Description_History(product_id, description_text) VALUES ($1, $2)`,
+      [productId, additionalDescription]
+    );
+  }catch (e) {
+    await client.query('ROLLBACK');
+    console.error("Lỗi khi bổ sung mô tả:", e);
+    throw e;
+  } finally {
+    client.release();
+  }
+}

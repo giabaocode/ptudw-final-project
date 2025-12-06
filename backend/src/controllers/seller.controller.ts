@@ -37,3 +37,17 @@ export const replyQuestion = async (req: Request, res: Response) => {
   }
 };
 // ------------------
+export const addDescription = async (req: Request, res: Response) => {
+  try{
+    const sellerId = (req as any).user.id;
+    const productId = parseInt(req.params.productId);
+    const { description } = req.body;
+
+    if (!description) throw new Error("Nội dung mô tả không được để trống");
+    await sellerService.appendDescription(sellerId, productId, description);
+    res.json({ success: true, message: "Đã thêm mô tả cho sản phẩm" });
+  }
+  catch (error: any){
+    res.status(400).json({ message: error.message });
+  }
+}

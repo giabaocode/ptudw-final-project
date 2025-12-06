@@ -17,7 +17,8 @@ import { Label } from "./ui/label";
 import { Input } from "./ui/input";
 import { ImageWithFallback } from "./figma/ImageWithFallback";
 import { ProductCard } from "./ProductCard";
-
+import ReactQuill from 'react-quill';
+import 'react-quill/dist/quill.snow.css';
 interface ProfilePageProps {
   onNavigate: (page: string, id?: number) => void;
 }
@@ -37,6 +38,7 @@ const getAvatarColor = (name: string) => {
     for (let i = 0; i < name.length; i++) hash = name.charCodeAt(i) + ((hash << 5) - hash);
     return colors[Math.abs(hash) % colors.length];
 };
+
 
 export function ProfilePage({ onNavigate }: ProfilePageProps) {
   const { user, token, login } = useAuth();
@@ -63,6 +65,10 @@ export function ProfilePage({ onNavigate }: ProfilePageProps) {
   const [ratingScore, setRatingScore] = useState<"positive" | "negative">("positive");
   const [ratingComment, setRatingComment] = useState("");
 
+  const [isAppendModalOpen, setIsAppendModalOpen] = useState(false);
+  const [selectedProductId, setSelectedProductId] = useState<number | null>(null);
+  const [appendContent, setAppendContent] = useState("");
+
   useEffect(() => {
     if (!token) return;
     if (user) setProfileForm({ full_name: user.full_name || "", email: user.email || "", address: user.address || "", dob: "" });
@@ -80,6 +86,22 @@ export function ProfilePage({ onNavigate }: ProfilePageProps) {
     };
     fetchData();
   }, [token, user]);
+
+  // Thêm useEffect này để khóa scroll body khi mở Modal
+useEffect(() => {
+  if (isAppendModalOpen) {
+    // Khi modal mở -> Khóa cuộn + thêm padding bên phải để tránh giật layout (do mất thanh scrollbar)
+    document.body.style.overflow = 'hidden';
+  } else {
+    // Khi modal đóng -> Trả lại trạng thái bình thường
+    document.body.style.overflow = 'unset';
+  }
+
+  // Cleanup function phòng trường hợp component bị hủy đột ngột
+  return () => {
+    document.body.style.overflow = 'unset';
+  };
+}, [isAppendModalOpen]);
 
   const now = new Date().getTime();
   const wonBids = rawMyBids.filter(p => new Date(p.end_at).getTime() <= now && p.current_highest_bidder_id === user?.id);
@@ -129,6 +151,46 @@ export function ProfilePage({ onNavigate }: ProfilePageProps) {
         toast.success("Đã gửi yêu cầu!");
     } catch (e) { toast.error("Lỗi gửi yêu cầu."); } finally { setIsUpgrading(false); }
   };
+
+  const isQuillEmpty = (value: string) => {
+    if (value.replace(/<(.|\n)*?>/g, '').trim().length === 0) {
+      return true;
+    }
+    return false;
+  };
+
+  const handleAppendSubmit = async () => {
+    // 1. Kiểm tra kỹ ID sản phẩm (Chặn lỗi NaN)
+    const productId = Number(selectedProductId);
+    if (!selectedProductId || isNaN(productId)) {
+      toast.error("Lỗi: Không tìm thấy ID sản phẩm. Vui lòng tải lại trang!");
+      console.error("ID không hợp lệ:", selectedProductId);
+      return;
+    }
+
+    // 2. Kiểm tra nội dung rỗng
+    const plainText = appendContent.replace(/<(.|\n)*?>/g, '').trim();
+    if (!plainText) {
+      toast.error("Vui lòng nhập nội dung!");
+      return;
+    }
+
+    try {
+        // Gửi request với ID đã được kiểm tra chắc chắn là số
+        await axios.post(`/api/seller/products/${productId}/description`,
+            { description: appendContent },
+            { headers: { Authorization: `Bearer ${token}` } }
+        );
+        
+        toast.success("Cập nhật thành công!");
+        setIsAppendModalOpen(false);
+        setAppendContent("");
+    } catch (error: any) {
+        console.error("API Error:", error);
+        toast.error(error.response?.data?.message || "Lỗi cập nhật mô tả.");
+    }
+  }
+
 
   if (loading) return <div className="p-8 max-w-6xl mx-auto"><Skeleton className="h-48 w-full rounded-2xl" /></div>;
 
@@ -341,8 +403,53 @@ export function ProfilePage({ onNavigate }: ProfilePageProps) {
           {user?.user_type === 'seller' && (
             <TabsContent value="my-products" className="outline-none">
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
-                    {myProducts.map(p => <ProductCard key={p.id} {...p} price={Number(p.current_price)} category="Kho hàng" image={p.image || p.images?.[0] || ""} onViewDetails={(id) => onNavigate("auction", id)} />)}
-                    {myProducts.length === 0 && <div className="col-span-full py-16 text-center text-gray-500 bg-white rounded-xl border border-dashed border-gray-200">Kho hàng trống.</div>}
+                    {myProducts.map((p) => (
+                        <div key={p.id} className="relative group">
+                            {/* 1. Hiển thị Card sản phẩm như cũ */}
+                            <ProductCard 
+                                {...p} 
+                                price={Number(p.current_price)} 
+                                category="Kho hàng" 
+                                image={p.image || (p.images && p.images[0]) || ""} 
+                                onViewDetails={(id) => onNavigate("auction", id)} 
+                            />
+                            
+                            {/* 2. Thêm nút bấm Bổ sung mô tả ngay bên dưới */}
+                            {/* Thay thế nút Button cũ bằng đoạn này */}
+                            <Button 
+                                variant="secondary"
+                                className="w-full mt-2 border-dashed border-2 border-blue-200 text-blue-700 hover:bg-blue-50"
+                                onClick={(e: any) => {
+                                    e.stopPropagation(); // Ngăn sự kiện click bị lan ra ngoài (quan trọng)
+                                    
+                                    // --- LOG DEBUG ---
+                                    console.log("Check sản phẩm:", p); 
+                                    
+                                    // Kiểm tra xem p.id có tồn tại không
+                                    const idToCheck = p.id || (p as any).product_id || (p as any)._id; 
+                                    
+                                    if (!idToCheck) {
+                                        alert("Lỗi dữ liệu: Sản phẩm này không có ID!");
+                                        console.error("ID bị thiếu trong object:", p);
+                                        return;
+                                    }
+
+                                    // Cập nhật State
+                                    setSelectedProductId(Number(idToCheck)); 
+                                    setIsAppendModalOpen(true);
+                                }}
+                            >
+                                ✏️ Bổ sung mô tả
+                            </Button>
+                        </div>
+                    ))}
+
+                    {/* Giữ nguyên phần thông báo nếu kho hàng trống */}
+                    {myProducts.length === 0 && (
+                        <div className="col-span-full py-16 text-center text-gray-500 bg-white rounded-xl border border-dashed border-gray-200">
+                            Kho hàng trống.
+                        </div>
+                    )}
                 </div>
             </TabsContent>
           )}
@@ -386,6 +493,74 @@ export function ProfilePage({ onNavigate }: ProfilePageProps) {
         </div>,
         document.body
       )}
+   {isAppendModalOpen && createPortal(
+  <div 
+    className="fixed inset-0 z-[99999] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4"
+    style={{ position: 'fixed', top: 0, left: 0, bottom: 0, right: 0 }}
+  >
+    {/* Click ra ngoài để đóng */}
+    <div className="absolute inset-0" onClick={() => setIsAppendModalOpen(false)}></div>
+
+    {/* CONTAINER MODAL */}
+    <div className="relative bg-white w-full max-w-md rounded-xl shadow-2xl overflow-hidden flex flex-col animate-in zoom-in-95 duration-200">
+      
+      {/* HEADER */}
+      <div className="flex justify-between items-center px-5 py-4 border-b border-gray-100 bg-gray-50">
+        <h3 className="font-bold text-gray-800">Bổ sung mô tả</h3>
+        <button 
+          onClick={() => setIsAppendModalOpen(false)}
+          className="text-gray-400 hover:text-red-500 p-1 rounded hover:bg-red-50 transition-all"
+        >
+          <X className="w-5 h-5" />
+        </button>
+      </div>
+
+      {/* BODY */}
+      <div className="p-5 bg-white space-y-3">
+        <Label className="font-semibold text-sm text-gray-700">Nội dung chi tiết</Label>
+        
+        {/* Khung Editor - Chiều cao vừa phải */}
+        <div className="h-40 border border-gray-300 rounded-md overflow-hidden focus-within:ring-2 focus-within:ring-blue-100 transition-all">
+          <ReactQuill 
+            theme="snow"
+            value={appendContent}
+            onChange={setAppendContent}
+            className="h-full flex flex-col"
+            placeholder="Nhập nội dung cập nhật..."
+            modules={{
+              toolbar: [
+                ['bold', 'italic', 'underline'], // Dòng 1
+                [{'list': 'bullet'}, {'list': 'ordered'}], // Dòng 1
+              ]
+            }}
+          />
+        </div>
+        <p className="text-xs text-gray-400 text-right italic">*Nội dung sẽ được thêm vào cuối mô tả hiện tại</p>
+      </div>
+
+      {/* FOOTER */}
+      <div className="px-5 py-4 bg-gray-50 border-t border-gray-100 flex justify-end gap-3">
+        <Button 
+          variant="outline" 
+          onClick={() => setIsAppendModalOpen(false)}
+          className="h-9 px-4 text-sm font-medium"
+        >
+          Hủy bỏ
+        </Button>
+        
+        {/* Nút Xác nhận - Fix màu nền và màu chữ rõ ràng */}
+        <Button 
+          onClick={handleAppendSubmit} 
+          className="h-9 px-4 text-sm font-bold bg-blue-600 hover:bg-blue-700 text-white shadow-md"
+        >
+          Xác nhận
+        </Button>
+      </div>
+
+    </div>
+  </div>,
+  document.body
+)}
     </div>
   );
 }
