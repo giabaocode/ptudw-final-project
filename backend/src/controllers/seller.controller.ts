@@ -65,3 +65,29 @@ export const kickBidder = async (req: Request, res: Response) => {
     res.status(400).json({ message: error.message });
   }
 };
+
+
+export const rateWinnerController = async (req: Request, res: Response) => {
+  try {
+    const sellerId = (req as any).user.id;
+    const productId = parseInt(req.params.id);
+    const { score, comment } = req.body;
+
+    const result = await sellerService.rateWinner(sellerId, productId, score, comment);
+    res.json(result);
+  } catch (error: any) {
+    res.status(400).json({ message: error.message });
+  }
+};
+
+export const cancelTransactionController = async (req: Request, res: Response) => {
+  try {
+    const sellerId = (req as any).user.id;
+    const productId = parseInt(req.params.id);
+
+    const result = await sellerService.cancelTransaction(sellerId, productId);
+    res.json({ ...result, message: "Đã hủy giao dịch và trừ điểm người thắng." });
+  } catch (error: any) {
+    res.status(400).json({ message: error.message });
+  }
+};

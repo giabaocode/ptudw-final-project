@@ -98,45 +98,53 @@ export const answerQuestion = async (
 
   return { message: "Đã trả lời câu hỏi" };
 };
-
-export const appendDescription = async(
+export const appendDescription = async (
   sellerId: number,
   productId: number,
   additionalDescription: string
 ) => {
   const client = await pool.connect();
   try {
-    await client.query('BEGIN');
+    await client.query('BEGIN'); // 1. Bắt đầu
+
     const productRes = await client.query(
       `SELECT id, description FROM Products WHERE id = $1 AND seller_id = $2 FOR UPDATE`,
-    
       [productId, sellerId]
     );
+
     if (productRes.rows.length === 0) {
       throw new Error("Sản phẩm không tồn tại hoặc bạn không có quyền chỉnh sửa");
     }
+
     const currentDescription = productRes.rows[0].description || "";
     const timestamp = new Date().toLocaleString('vi-VN');
+    
+    // Tạo nội dung nối thêm
     const appendText = `\n\n<hr />\n<p><strong>[Cập nhật lúc ${timestamp}]:</strong></p>\n${additionalDescription}`;
 
+    // 2. Update nối chuỗi vào bảng chính (ĐÚNG LOGIC)
     await client.query(
       `UPDATE Products SET description = $1 WHERE id = $2`,
       [currentDescription + appendText, productId]
     );
 
+    // 3. Lưu lịch sử
     await client.query(
       `INSERT INTO Product_Description_History(product_id, description_text) VALUES ($1, $2)`,
       [productId, additionalDescription]
     );
-  }catch (e) {
-    await client.query('ROLLBACK');
+
+    // 4. QUAN TRỌNG: PHẢI CÓ DÒNG NÀY MỚI LƯU ĐƯỢC
+    await client.query('COMMIT'); 
+
+  } catch (e) {
+    await client.query('ROLLBACK'); // Hủy nếu lỗi
     console.error("Lỗi khi bổ sung mô tả:", e);
     throw e;
   } finally {
     client.release();
   }
-}
-
+};
 
 
 
@@ -212,4 +220,80 @@ export const rejectBidder = async (sellerId: number, productId: number, bidderId
   } finally {
     client.release();
   }
+};
+
+
+
+export const rateWinner = async (
+  sellerId: number, 
+  productId: number, 
+  score: 'positive' | 'negative', 
+  comment: string
+) => {
+  const client = await pool.connect();
+  try {
+    await client.query("BEGIN");
+
+    // Check quyền & Trạng thái sản phẩm
+    const productRes = await client.query(
+      `SELECT current_highest_bidder_id, end_at FROM Products WHERE id = $1 AND seller_id = $2`,
+      [productId, sellerId]
+    );
+    
+    if (productRes.rows.length === 0) throw new Error("Sản phẩm không tồn tại hoặc bạn không có quyền.");
+    const product = productRes.rows[0];
+
+    if (new Date(product.end_at) > new Date()) throw new Error("Đấu giá chưa kết thúc.");
+    if (!product.current_highest_bidder_id) throw new Error("Sản phẩm này không có người thắng.");
+
+    const winnerId = product.current_highest_bidder_id;
+
+    // Tạo hoặc Lấy Transaction ID
+    let transId;
+    const transCheck = await client.query("SELECT id FROM Transactions WHERE product_id = $1", [productId]);
+    if (transCheck.rows.length > 0) {
+        transId = transCheck.rows[0].id;
+    } else {
+        const newTrans = await client.query(
+            `INSERT INTO Transactions (product_id, buyer_id, seller_id, final_price, status) 
+             VALUES ($1, $2, $3, 0, 'pending_payment') RETURNING id`, 
+            [productId, winnerId, sellerId]
+        );
+        transId = newTrans.rows[0].id;
+    }
+
+    // Insert đánh giá vào bảng Ratings
+    // (Lưu ý: rated_user_id ở đây là winnerId)
+    await client.query(
+        `INSERT INTO Ratings (transaction_id, rater_id, rated_user_id, score, comment)
+         VALUES ($1, $2, $3, $4, $5)`,
+        [transId, sellerId, winnerId, score, comment]
+    );
+
+    // Cập nhật điểm uy tín cho người thắng (Bidder)
+    if (score === 'positive') {
+        await client.query("UPDATE Users SET rating_plus = rating_plus + 1 WHERE id = $1", [winnerId]);
+    } else {
+        await client.query("UPDATE Users SET rating_minus = rating_minus + 1 WHERE id = $1", [winnerId]);
+    }
+
+    await client.query("COMMIT");
+    return { success: true, message: "Đánh giá người thắng thành công!" };
+  } catch (e) {
+    await client.query("ROLLBACK");
+    throw e;
+  } finally {
+    client.release();
+  }
+};
+
+// --- [THÊM MỚI] 2. Hủy giao dịch (Tự động -1 điểm) ---
+export const cancelTransaction = async (sellerId: number, productId: number) => {
+    // Hủy đơn thực chất là đánh giá tiêu cực với lý do cố định
+    return rateWinner(
+        sellerId, 
+        productId, 
+        'negative', 
+        'Người thắng không thanh toán (Hủy giao dịch)'
+    );
 };
