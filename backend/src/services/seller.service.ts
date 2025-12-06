@@ -136,3 +136,80 @@ export const appendDescription = async(
     client.release();
   }
 }
+
+
+
+
+
+// backend/src/services/seller.service.ts
+
+export const rejectBidder = async (sellerId: number, productId: number, bidderId: number) => {
+  const client = await pool.connect();
+  try {
+    await client.query("BEGIN");
+
+    // 1. Kiểm tra quyền sở hữu
+    const productCheck = await client.query(
+      "SELECT id FROM Products WHERE id = $1 AND seller_id = $2 FOR UPDATE",
+      [productId, sellerId]
+    );
+    if (productCheck.rows.length === 0) throw new Error("Bạn không phải người bán sản phẩm này.");
+
+    // 2. Chặn bidder (Insert vào bảng Blocked_Bidders của bạn)
+    // Lưu ý: Dùng đúng tên cột bidder_id như bạn đã tạo bảng
+    await client.query(
+      `INSERT INTO Blocked_Bidders (product_id, bidder_id, seller_id) 
+       VALUES ($1, $2, $3) 
+       ON CONFLICT (product_id, bidder_id) DO NOTHING`,
+      [productId, bidderId, sellerId]
+    );
+
+    // 3. Xóa TOÀN BỘ lượt bid của người này tại sản phẩm này
+    await client.query(
+      "DELETE FROM Bids WHERE product_id = $1 AND bidder_id = $2",
+      [productId, bidderId]
+    );
+
+    // 4. Tìm người thắng mới (Người cao nhất còn lại)
+    const nextWinnerRes = await client.query(
+      `SELECT bidder_id, amount 
+       FROM Bids 
+       WHERE product_id = $1 
+       ORDER BY amount DESC, created_at ASC 
+       LIMIT 1`,
+      [productId]
+    );
+
+    // 5. Cập nhật lại bảng Products
+    if (nextWinnerRes.rows.length > 0) {
+      // Trường hợp CÓ người thứ nhì lên thay
+      const newWinner = nextWinnerRes.rows[0];
+      await client.query(
+        `UPDATE Products 
+         SET current_price = $1, 
+             current_highest_bidder_id = $2,
+             bid_count = (SELECT COUNT(*) FROM Bids WHERE product_id = $3)
+         WHERE id = $3`,
+        [newWinner.amount, newWinner.bidder_id, productId]
+      );
+    } else {
+      // Trường hợp KHÔNG còn ai (Về giá sàn)
+      await client.query(
+        `UPDATE Products 
+         SET current_price = start_price, 
+             current_highest_bidder_id = NULL,
+             bid_count = 0
+         WHERE id = $1`,
+        [productId]
+      );
+    }
+
+    await client.query("COMMIT");
+    return { success: true, message: "Đã từ chối và cập nhật người thắng mới." };
+  } catch (e) {
+    await client.query("ROLLBACK");
+    throw e;
+  } finally {
+    client.release();
+  }
+};

@@ -20,6 +20,15 @@ export const placeBid = async (
 
     if (productRes.rows.length === 0) throw new Error("Sản phẩm không tồn tại");
     const product = productRes.rows[0];
+    console.log(productId);
+    const blockcheck = await client.query(
+      `SELECT 1 FROM Blocked_Bidders WHERE product_id=$1 AND bidder_id=$2`,
+      [productId, bidderId]
+    )
+
+    if (blockcheck.rows.length > 0){
+        throw new Error("⛔ Bạn đã bị người bán từ chối tham gia đấu giá sản phẩm này.");    
+    }
 
     const now = new Date();
     if (new Date(product.end_at) < now) throw new Error("Đấu giá đã kết thúc");

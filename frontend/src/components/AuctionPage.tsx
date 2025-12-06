@@ -166,7 +166,7 @@ export function AuctionPage({ onNavigate, auctionId }: AuctionPageProps) {
   const [qaPage, setQaPage] = useState(1);
   const QA_ITEMS_PER_PAGE = 3;
 
-  const { isLoggedIn, token } = useAuth();
+  const { isLoggedIn, token, user} = useAuth();
 
   // State và ref cho modal xác nhận ra giá (từ code cần merge)
   const confirmBtnRef = useRef<HTMLButtonElement | null>(null);
@@ -489,6 +489,23 @@ export function AuctionPage({ onNavigate, auctionId }: AuctionPageProps) {
     }
   };
 
+  // Hàm xử lý từ chối
+  const handleKickBidder = async (bidderId: number) => {
+    if (!confirm("⚠️ CẢNH BÁO: Bạn có chắc muốn từ chối người này?\n\n- Toàn bộ giá họ đặt sẽ bị xóa.\n- Họ sẽ bị cấm đấu giá lại.\n- Sản phẩm sẽ chuyển cho người cao thứ nhì.")) return;
+    
+    try {
+      await axios.post(
+          `/api/seller/products/${auctionId}/kick/${bidderId}`, 
+          {}, 
+          { headers: { Authorization: `Bearer ${token}` } }
+      );
+      toast.success("Đã từ chối thành công! Giá đã được cập nhật.");
+      fetchAuctionData(); // Tải lại trang ngay lập tức
+    } catch(e: any) {
+      toast.error(e.response?.data?.message || "Lỗi khi thực hiện.");
+    }
+  }
+
   const totalQaPages = Math.ceil(questions.length / QA_ITEMS_PER_PAGE);
   const currentQuestions = questions.slice(
     (qaPage - 1) * QA_ITEMS_PER_PAGE,
@@ -627,18 +644,21 @@ export function AuctionPage({ onNavigate, auctionId }: AuctionPageProps) {
                 </TabsContent>
 
                 <TabsContent value="history">
-                  <div className="bg-white rounded-xl border border-gray-100 overflow-hidden">
-                    {bidHistory.length > 0 ? (
+                    <div className="bg-white rounded-xl border border-gray-100 overflow-hidden">
                       <table className="w-full text-sm text-left">
                         <thead className="bg-gray-50 text-gray-500">
                           <tr>
                             <th className="px-6 py-3">Bidder</th>
                             <th className="px-6 py-3">Giá</th>
                             <th className="px-6 py-3 text-right">Thời gian</th>
+                            {/* Cột hành động chỉ hiện cho Seller */}
+                            {user && auction && user.id == auction.seller_id && (
+                              <th className="px-6 py-3 text-center">Hành động</th>
+                            )}
                           </tr>
                         </thead>
                         <tbody className="divide-y divide-gray-100">
-                          {bidHistory.map((bid, i) => (
+                          {bidHistory.map((bid: any, i) => (
                             <tr key={i}>
                               <td className="px-6 py-4 font-medium text-gray-900">
                                 {bid.bidder_name}
@@ -647,22 +667,31 @@ export function AuctionPage({ onNavigate, auctionId }: AuctionPageProps) {
                                 ${Number(bid.amount).toLocaleString()}
                               </td>
                               <td className="px-6 py-4 text-right text-gray-500">
-                                {format(
-                                  new Date(bid.created_at),
-                                  "HH:mm dd/MM/yyyy"
-                                )}
+                                {formatRelativeTime(bid.created_at)}
                               </td>
+                              
+                              {/* Nút Kick - Chỉ hiện cho Seller */}
+                              {user && auction && user.id == auction.seller_id && (
+                                  <td className="px-6 py-4 text-center">
+                                      <Button 
+                                          variant="destructive" 
+                                          size="sm"
+                                          className="h-8 px-3 bg-red-100 text-red-600 hover:bg-red-600 hover:text-white border-0 transition-colors"
+                                          onClick={() => handleKickBidder(bid.bidder_id)}
+                                      >
+                                          Từ chối
+                                      </Button>
+                                  </td>
+                              )}
                             </tr>
                           ))}
+                          {bidHistory.length === 0 && (
+                              <tr><td colSpan={4} className="p-4 text-center text-gray-500">Chưa có lượt đấu giá nào.</td></tr>
+                          )}
                         </tbody>
                       </table>
-                    ) : (
-                      <div className="p-8 text-center text-gray-500">
-                        Chưa có ai đặt giá.
-                      </div>
-                    )}
-                  </div>
-                </TabsContent>
+                    </div>
+                  </TabsContent>
 
                 <TabsContent value="qa">
                   <div className="mt-4">

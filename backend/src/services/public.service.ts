@@ -279,6 +279,7 @@ export const getBidHistory = async (productId: number) => {
       amount: Number(bid.amount),
       created_at: bid.created_at,
       bidder_name: `*** ${lastName}`,
+      bidder_id : bid.bidder_id
     };
   });
 };

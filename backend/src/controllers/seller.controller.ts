@@ -51,3 +51,17 @@ export const addDescription = async (req: Request, res: Response) => {
     res.status(400).json({ message: error.message });
   }
 }
+
+
+export const kickBidder = async (req: Request, res: Response) => {
+  try {
+    const sellerId = (req as any).user.id;
+    const productId = parseInt(req.params.id);
+    const bidderId = parseInt(req.params.bidderId);
+
+    await sellerService.rejectBidder(sellerId, productId, bidderId);
+    res.json({ success: true, message: "Đã từ chối lượt ra giá." });
+  } catch (error: any) {
+    res.status(400).json({ message: error.message });
+  }
+};

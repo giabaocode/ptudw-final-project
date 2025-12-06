@@ -6,6 +6,8 @@ import {
 } from "../controllers/seller.controller";
 import { authenticateToken } from "../utils/auth";
 import { addDescription } from "../controllers/seller.controller";
+import { kickBidder } from "../controllers/seller.controller"; // Import
+
 
 const router = Router();
 
@@ -13,6 +15,8 @@ const router = Router();
 router.post("/products", authenticateToken, createProduct);
 router.get("/my-products", authenticateToken, getMyProducts);
 
+// ...
+router.post("/products/:id/kick/:bidderId", authenticateToken, kickBidder);
 // ... routes cũ
 
 // --- [THÊM ROUTE MỚI] ---
