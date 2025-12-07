@@ -36,16 +36,16 @@ export function LoginPage({ onNavigate }: LoginPageProps) {
       const pageParam = params.get("page");
       const idParam = params.get("id");
 
-      if (pageParam === 'auction' && idParam) {
-         // Nếu trên URL vẫn còn tham số auction, ưu tiên chuyển về đó
-         onNavigate('auction', Number(idParam));
+      if (pageParam === "auction" && idParam) {
+        // Nếu trên URL vẫn còn tham số auction, ưu tiên chuyển về đó
+        onNavigate("auction", Number(idParam));
       } else {
-        if (user.user_type === 'admin') {
-             onNavigate("dashboard");
-         } else {
-             onNavigate("profile");
-         }
-         onNavigate("profile");
+        if (user.user_type === "admin") {
+          onNavigate("dashboard");
+        } else {
+          onNavigate("profile");
+        }
+        onNavigate("profile");
       }
       // ---------------------
     } catch (error: any) {

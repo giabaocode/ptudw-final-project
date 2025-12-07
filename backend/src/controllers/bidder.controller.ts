@@ -30,7 +30,7 @@ export const addToWatchlist = async (req: Request, res: Response) => {
 
     // Kiểm tra nếu service trả về success: false (Logic từ nhánh test-2)
     if (result && (result as any).success === false) {
-        return res.status(409).json({ message: result.message });
+      return res.status(409).json({ message: result.message });
     }
 
     res.status(200).json({ message: "Sản phẩm đã được thêm vào Watchlist." });
@@ -87,7 +87,12 @@ export const rateSeller = async (req: Request, res: Response) => {
     const productId = parseInt(req.params.id);
     const { score, comment } = req.body;
     // Lưu ý: Cần đảm bảo bidderService có hàm rateSeller
-    const result = await bidderService.rateSeller(userId, productId, score, comment);
+    const result = await bidderService.rateSeller(
+      userId,
+      productId,
+      score,
+      comment
+    );
     res.json(result);
   } catch (error: any) {
     res.status(400).json({ message: error.message });
@@ -110,5 +115,33 @@ export const createQuestion = async (req: Request, res: Response) => {
     res.status(201).json({ message: "Gửi câu hỏi thành công" });
   } catch (error: any) {
     res.status(400).json({ message: error.message });
+  }
+};
+
+export const submitPaymentController = async (req: Request, res: Response) => {
+  try {
+    const userId = (req as any).user.id;
+    const productId = parseInt(req.params.id);
+    const { address, proof } = req.body;
+    const result = await bidderService.submitPayment(
+      userId,
+      productId,
+      address,
+      proof
+    );
+    res.json(result);
+  } catch (e: any) {
+    res.status(400).json({ message: e.message });
+  }
+};
+
+export const confirmReceiptController = async (req: Request, res: Response) => {
+  try {
+    const userId = (req as any).user.id;
+    const productId = parseInt(req.params.id);
+    const result = await bidderService.confirmReceipt(userId, productId);
+    res.json(result);
+  } catch (e: any) {
+    res.status(400).json({ message: e.message });
   }
 };

@@ -6,11 +6,10 @@ import {
   addDescription,
   kickBidder,
   rateWinnerController,
-  cancelTransactionController
+  cancelTransactionController,
+  confirmShipmentController,
 } from "../controllers/seller.controller";
 import { authenticateToken } from "../utils/auth";
-
-
 
 const router = Router();
 
@@ -25,8 +24,20 @@ router.post("/products/:id/kick/:bidderId", authenticateToken, kickBidder);
 // --- [THÊM ROUTE MỚI] ---
 router.post("/questions/:questionId/reply", authenticateToken, replyQuestion);
 // ------------------------
-router.post("/products/:productId/description", authenticateToken, addDescription);
-router.post("/products/:id/rate-winner", authenticateToken, rateWinnerController);
-router.post("/products/:id/cancel", authenticateToken, cancelTransactionController);
-
+router.post(
+  "/products/:productId/description",
+  authenticateToken,
+  addDescription
+);
+router.post(
+  "/products/:id/rate-winner",
+  authenticateToken,
+  rateWinnerController
+);
+router.post(
+  "/products/:id/cancel",
+  authenticateToken,
+  cancelTransactionController
+);
+router.post("/products/:id/ship", authenticateToken, confirmShipmentController);
 export default router;

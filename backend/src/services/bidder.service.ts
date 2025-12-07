@@ -24,10 +24,12 @@ export const placeBid = async (
     const blockcheck = await client.query(
       `SELECT 1 FROM Blocked_Bidders WHERE product_id=$1 AND bidder_id=$2`,
       [productId, bidderId]
-    )
+    );
 
-    if (blockcheck.rows.length > 0){
-        throw new Error("⛔ Bạn đã bị người bán từ chối tham gia đấu giá sản phẩm này.");    
+    if (blockcheck.rows.length > 0) {
+      throw new Error(
+        "⛔ Bạn đã bị người bán từ chối tham gia đấu giá sản phẩm này."
+      );
     }
 
     const now = new Date();
@@ -47,7 +49,9 @@ export const placeBid = async (
 
     if (total > 0) {
       if (plus / total < 0.8) {
-        throw new Error("Tỷ lệ đánh giá tích cực của bạn quá thấp (<80%), không thể tham gia đấu giá.");
+        throw new Error(
+          "Tỷ lệ đánh giá tích cực của bạn quá thấp (<80%), không thể tham gia đấu giá."
+        );
       }
     } else {
       // Nếu chưa có rating nào, check xem sản phẩm có cho phép người mới không
@@ -88,7 +92,7 @@ export const placeBid = async (
     }
 
     // --- XỬ LÝ LOGIC AUTO BID ---
-    
+
     // Case A: Người đang thắng tự update giá trần
     if (bidderId === currentWinnerId) {
       if (amount <= currentWinnerMaxBid) {
@@ -131,7 +135,8 @@ export const placeBid = async (
 
       await client.query("COMMIT");
       return {
-        message: "Giá của bạn thấp hơn giá trần của người dẫn đầu! Hệ thống đã tự động đặt lại.",
+        message:
+          "Giá của bạn thấp hơn giá trần của người dẫn đầu! Hệ thống đã tự động đặt lại.",
         status: "outbid",
       };
     }
@@ -155,9 +160,13 @@ export const placeBid = async (
     const timeRemaining = new Date(product.end_at).getTime() - now.getTime();
     let newEndAt = product.end_at;
 
-    const IS_AUTO_EXTEND_ENABLED = true; 
+    const IS_AUTO_EXTEND_ENABLED = true;
 
-    if (IS_AUTO_EXTEND_ENABLED && timeRemaining > 0 && timeRemaining < 5 * 60 * 1000) {
+    if (
+      IS_AUTO_EXTEND_ENABLED &&
+      timeRemaining > 0 &&
+      timeRemaining < 5 * 60 * 1000
+    ) {
       console.log("⚡ Kích hoạt Anti-Sniping: Gia hạn thêm 10 phút!");
       newEndAt = new Date(new Date(product.end_at).getTime() + 10 * 60 * 1000);
     }
@@ -194,7 +203,7 @@ export const addToWatchlist = async (userId: number, productId: number) => {
     return {
       success: false,
       message: "Sản phẩm đã có trong danh sách theo dõi của bạn.",
-    }
+    };
   }
   return {
     success: true,
@@ -248,21 +257,33 @@ export const getMyBid = async (userId: number) => {
 };
 // 5. LẤY DANH SÁCH ĐÃ THẮNG (Từ nhánh Test-2)
 export const getWonAuctions = async (userId: number) => {
-  const res = await pool.query(`
+  const res = await pool.query(
+    `
     SELECT p.*,
       (SELECT image_url FROM Product_Images WHERE product_id = p.id LIMIT 1) as image,
-      u.full_name as seller_name
+      u.full_name as seller_name,
+      t.status as transaction_status,
+      t.shipping_address,
+      t.payment_proof
     FROM Products p
     JOIN Users u ON p.seller_id = u.id
+    LEFT JOIN Transactions t ON p.id = t.product_id
     WHERE p.current_highest_bidder_id = $1 
       AND p.end_at < NOW()
     ORDER BY p.end_at DESC
-  `, [userId]);
+  `,
+    [userId]
+  );
   return res.rows;
 };
 
 // 6. ĐÁNH GIÁ NGƯỜI BÁN (Từ nhánh Test-2)
-export const rateSeller = async (bidderId: number, productId: number, score: 'positive' | 'negative', comment: string) => {
+export const rateSeller = async (
+  bidderId: number,
+  productId: number,
+  score: "positive" | "negative",
+  comment: string
+) => {
   const client = await pool.connect();
   try {
     await client.query("BEGIN");
@@ -270,7 +291,7 @@ export const rateSeller = async (bidderId: number, productId: number, score: 'po
     // A. Kiểm tra quyền đánh giá
     const productRes = await client.query(
       `SELECT id, seller_id, current_highest_bidder_id, current_price, end_at 
-       FROM Products WHERE id = $1`, 
+       FROM Products WHERE id = $1`,
       [productId]
     );
     if (productRes.rows.length === 0) throw new Error("Sản phẩm không tồn tại");
@@ -286,7 +307,7 @@ export const rateSeller = async (bidderId: number, productId: number, score: 'po
     // B. Tạo Transaction nếu chưa có
     let transId;
     const transCheck = await client.query(
-      "SELECT id FROM Transactions WHERE product_id = $1", 
+      "SELECT id FROM Transactions WHERE product_id = $1",
       [productId]
     );
 
@@ -321,15 +342,20 @@ export const rateSeller = async (bidderId: number, productId: number, score: 'po
     }
 
     // D. Update điểm số Seller
-    if (score === 'positive') {
-      await client.query("UPDATE Users SET rating_plus = rating_plus + 1 WHERE id = $1", [product.seller_id]);
+    if (score === "positive") {
+      await client.query(
+        "UPDATE Users SET rating_plus = rating_plus + 1 WHERE id = $1",
+        [product.seller_id]
+      );
     } else {
-      await client.query("UPDATE Users SET rating_minus = rating_minus + 1 WHERE id = $1", [product.seller_id]);
+      await client.query(
+        "UPDATE Users SET rating_minus = rating_minus + 1 WHERE id = $1",
+        [product.seller_id]
+      );
     }
 
     await client.query("COMMIT");
     return { success: true, message: "Đánh giá thành công!" };
-
   } catch (error) {
     await client.query("ROLLBACK");
     throw error;
@@ -363,19 +389,89 @@ export const postQuestion = async (
 
     if (infoRes.rows.length > 0) {
       const { product_name, seller_email } = infoRes.rows[0];
-      
+
       // Tạo link trỏ về trang chi tiết sản phẩm ở Frontend (Giả sử FE chạy port 3000)
       // Bạn nên đưa URL gốc vào biến môi trường (process.env.FRONTEND_URL) thì tốt hơn
       const frontendUrl = process.env.FRONTEND_URL || "http://localhost:3000";
       const productLink = `${frontendUrl}/?page=auction&id=${productId}`; // Hoặc /auction/${productId} tùy route FE
 
       // 3. Gửi email (Không await để tránh làm chậm response của User)
-      sendQuestionNotificationEmail(seller_email, product_name, text, productLink)
-        .catch(err => console.error("Background email error:", err));
+      sendQuestionNotificationEmail(
+        seller_email,
+        product_name,
+        text,
+        productLink
+      ).catch((err) => console.error("Background email error:", err));
     }
 
     return { message: "Đã gửi câu hỏi thành công!" };
   } finally {
     client.release();
   }
+};
+
+export const submitPayment = async (
+  userId: number,
+  productId: number,
+  address: string,
+  proofUrl: string
+) => {
+  const client = await pool.connect();
+  try {
+    const product = await client.query(
+      `SELECT current_highest_bidder_id, current_price, seller_id FROM Prducts WHERE id = $1`,
+      [productId]
+    );
+
+    if (product.rows.length === 0) {
+      throw new Error("Sản phẩm không tồn tại");
+    }
+    if (product.rows[0].current_highest_bidder_id !== userId) {
+      throw new Error("Bạn không phải người thắng cuộc");
+    }
+    await client.query(
+      `
+      INSERT INTO Transactions (product_id, buyer_id, seller_id, final_price, status, shipping_address, payment_proof, created_at)
+      VALUES ($1, $2, $3, $4, 'paid', $5, $6, NOW())
+      ON CONFLICT (product_id) 
+      DO UPDATE SET 
+        status = 'paid', 
+        shipping_address = $5, 
+        payment_proof = $6, 
+        updated_at = NOW()
+    `,
+      [
+        productId,
+        userId,
+        product.rows[0].seller_id,
+        product.rows[0].current_price,
+        address,
+        proofUrl,
+      ]
+    );
+
+    return { message: "Đã gửi thông tin thanh toán. Chờ người bán xác nhận." };
+  } catch {
+  } finally {
+    client.release();
+  }
+};
+
+export const confirmReceipt = async (userId: number, productId: number) => {
+  const res = await pool.query(
+    `UPDATE Transactions
+    SET status='received' updated_at=NOW()
+    WHERE product_id=$1 AND buyer_id=$2 AND status='shipped'
+    `,
+    [productId, userId]
+  );
+  if (res.rowCount === 0) {
+    throw new Error(
+      "Không thể xác nhận (Đơn hàng chưa được gửi hoặc bạn không có quyền)"
+    );
+  }
+
+  return {
+    message: "Đã nhận hàng thành công. Hãy đánh giá người bán để hoàn tất.",
+  };
 };

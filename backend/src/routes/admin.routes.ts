@@ -11,7 +11,7 @@ import {
   requestUpgrade,
   getUpgradeRequests,
   approveUpgrade,
-  rejectUpgrade
+  rejectUpgrade,
 } from "../controllers/admin.controller";
 import { authenticateToken } from "../utils/auth";
 

@@ -76,7 +76,7 @@ export const deleteUser = async (req: Request, res: Response) => {
 export const requestUpgrade = async (req: Request, res: Response) => {
   try {
     // Lấy ID người dùng từ token (tương tự seller.controller)
-    const userId = (req as any).user.id; 
+    const userId = (req as any).user.id;
     const result = await adminService.requestUpgrade(userId);
     res.json({ success: true, ...result });
   } catch (error: any) {

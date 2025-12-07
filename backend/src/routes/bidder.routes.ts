@@ -1,17 +1,19 @@
 import { Router } from "express";
-import { 
-    // Các hàm cơ bản
-    placeBid, 
-    getWatchlist, 
-    getMyBids, 
-    addToWatchlist,
-    
-    // Hàm từ nhánh test-2 (Thắng cuộc & Đánh giá)
-    getWonAuctions, 
-    rateSeller,
+import {
+  // Các hàm cơ bản
+  placeBid,
+  getWatchlist,
+  getMyBids,
+  addToWatchlist,
 
-    // Hàm từ nhánh pagination (Hỏi đáp)
-    createQuestion
+  // Hàm từ nhánh test-2 (Thắng cuộc & Đánh giá)
+  getWonAuctions,
+  rateSeller,
+
+  // Hàm từ nhánh pagination (Hỏi đáp)
+  createQuestion,
+  submitPaymentController,
+  confirmReceiptController,
 } from "../controllers/bidder.controller";
 import { authenticateToken } from "../utils/auth";
 
@@ -28,10 +30,18 @@ router.post("/products/:id/watchlist", authenticateToken, addToWatchlist);
 router.get("/my-bids", authenticateToken, getMyBids);
 
 // --- WON AUCTIONS & RATING (Từ nhánh test-2) ---
-router.get('/won-auctions', authenticateToken, getWonAuctions);
-router.post('/products/:id/rate', authenticateToken, rateSeller);
+router.get("/won-auctions", authenticateToken, getWonAuctions);
+router.post("/products/:id/rate", authenticateToken, rateSeller);
 
 // --- QUESTIONS (Từ nhánh pagination) ---
 router.post("/products/:id/questions", authenticateToken, createQuestion);
+
+// ... Các route cũ ...
+router.post("/products/:id/pay", authenticateToken, submitPaymentController);
+router.post(
+  "/products/:id/receive",
+  authenticateToken,
+  confirmReceiptController
+);
 
 export default router;

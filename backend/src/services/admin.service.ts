@@ -95,7 +95,7 @@ export const requestUpgrade = async (userId: number) => {
     `SELECT id FROM Upgrade_Requests WHERE user_id = $1 AND status = 'pending'`,
     [userId]
   );
-  
+
   if (checkRes.rows.length > 0) {
     throw new Error("Bạn đã có yêu cầu đang chờ duyệt.");
   }
@@ -118,7 +118,10 @@ export const getPendingUpgradeRequests = async () => {
   return res.rows;
 };
 
-export const approveUpgradeRequest = async (requestId: number, adminId: number) => {
+export const approveUpgradeRequest = async (
+  requestId: number,
+  adminId: number
+) => {
   const client = await pool.connect();
   try {
     await client.query("BEGIN");
@@ -129,7 +132,7 @@ export const approveUpgradeRequest = async (requestId: number, adminId: number) 
       [requestId]
     );
     if (reqRes.rows.length === 0) throw new Error("Yêu cầu không tồn tại");
-    
+
     const userId = reqRes.rows[0].user_id;
 
     // 2. Cập nhật trạng thái Request
@@ -157,7 +160,10 @@ export const approveUpgradeRequest = async (requestId: number, adminId: number) 
   }
 };
 
-export const rejectUpgradeRequest = async (requestId: number, adminId: number) => {
+export const rejectUpgradeRequest = async (
+  requestId: number,
+  adminId: number
+) => {
   await pool.query(
     `UPDATE Upgrade_Requests SET status = 'rejected', processed_by_admin_id = $1 WHERE id = $2`,
     [adminId, requestId]

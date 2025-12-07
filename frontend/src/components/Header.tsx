@@ -157,10 +157,10 @@ export function Header({
                 {/* --- THÊM NÚT CHO ADMIN --- */}
                 {/* Bạn cần đảm bảo đã lấy user từ useAuth() ở đầu component Header */}
                 {/* Nếu chưa có user, hãy sửa: const { isLoggedIn, logout, user } = useAuth(); */}
-                
-                {user?.user_type === 'admin' && (
-                  <Button 
-                    variant="ghost" 
+
+                {user?.user_type === "admin" && (
+                  <Button
+                    variant="ghost"
                     onClick={() => onNavigate("admin-dashboard")}
                     className="text-red-600 font-bold"
                   >

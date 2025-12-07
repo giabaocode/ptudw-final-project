@@ -18,7 +18,7 @@ import { VerifyPage } from "./components/VerifyPage";
 import { ForgotPasswordPage } from "./components/ForgotPasswordPage";
 import { ResetPasswordPage } from "./components/ResetPasswordPage";
 import { useEffect } from "react";
-import { AdminDashboard } from "./components/AdminDashboard"
+import { AdminDashboard } from "./components/AdminDashboard";
 // Component Wrapper để lấy AuthContext trong App
 const AppContent = () => {
   const [currentPage, setCurrentPage] = useState("landing");
@@ -37,7 +37,7 @@ const AppContent = () => {
       // 2. Nếu có params, set state để chuyển trang ngay lập tức
       setCurrentPage(pageParam);
       setCurrentId(Number(idParam));
-      
+
       // 3. (Tuỳ chọn) Xóa query params trên thanh địa chỉ cho đẹp
       // window.history.replaceState({}, document.title, "/");
     }
@@ -132,7 +132,7 @@ const AppContent = () => {
         return (
           <SellerProfilePage onNavigate={handleNavigate} sellerId={currentId} />
         );
-        case "admin-dashboard":
+      case "admin-dashboard":
         // Logic cũ của bạn:
         // return isLoggedIn ? (
         //   <Dashboard onNavigate={handleNavigate} />
@@ -142,15 +142,15 @@ const AppContent = () => {
 
         // --- SỬA THÀNH CODE MỚI DƯỚI ĐÂY ---
         if (!isLoggedIn) return <LoginPage onNavigate={handleNavigate} />;
-        
+
         // Nếu là Admin thì hiện AdminDashboard
         // Lưu ý: user lấy từ useAuth() nên cần đảm bảo biến user có sẵn trong scope này
-        // (Trong AppContent bạn đã có const { isLoggedIn, user } = useAuth(); chưa? 
+        // (Trong AppContent bạn đã có const { isLoggedIn, user } = useAuth(); chưa?
         // Nếu chưa, hãy sửa dòng const { isLoggedIn } = useAuth(); thành const { isLoggedIn, user } = useAuth();)
-        if (user?.user_type === 'admin') {
-            return <AdminDashboard onNavigate={handleNavigate} />;
+        if (user?.user_type === "admin") {
+          return <AdminDashboard onNavigate={handleNavigate} />;
         }
-        
+
         // Nếu là user thường thì hiện Dashboard thường
         return <AdminDashboard onNavigate={handleNavigate} />;
       default:
