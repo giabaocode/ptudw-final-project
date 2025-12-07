@@ -101,7 +101,7 @@ export const answerQuestion = async (
 ) => {
   const checkRes = await pool.query(
     `SELECT p.seller_id 
-     FROM Product_Questions q
+     FROM Question_Answers q
      JOIN Products p ON q.product_id = p.id
      WHERE q.id = $1`,
     [questionId]
@@ -112,7 +112,7 @@ export const answerQuestion = async (
     throw new Error("Bạn không có quyền trả lời câu hỏi này");
 
   await pool.query(
-    `UPDATE Product_Questions SET answer_text = $1 WHERE id = $2`,
+    `UPDATE Question_Answers SET answer_text = $1 WHERE id = $2`,
     [answer, questionId]
   );
 

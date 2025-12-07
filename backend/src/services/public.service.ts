@@ -279,7 +279,7 @@ export const getBidHistory = async (productId: number) => {
       amount: Number(bid.amount),
       created_at: bid.created_at,
       bidder_name: `*** ${lastName}`,
-      bidder_id : bid.bidder_id
+      bidder_id: bid.bidder_id,
     };
   });
 };
@@ -289,11 +289,14 @@ export const getBidHistory = async (productId: number) => {
 // 8. Task: Lấy câu hỏi Q&A
 export const getProductQuestions = async (productId: number) => {
   const res = await pool.query(
-    `SELECT q.*, u.full_name as user_name 
-     FROM Product_Questions q
-     JOIN Users u ON q.user_id = u.id
+    `SELECT q.*, 
+            u.full_name as user_name,
+            r.full_name as responder_name
+     FROM Question_Answers q
+     JOIN Users u ON q.asker_id = u.id
+     LEFT JOIN Users r ON q.responder_id = r.id
      WHERE q.product_id = $1
-     ORDER BY q.created_at DESC`,
+     ORDER BY q.asked_at DESC`, // Chú ý: trong DB là asked_at, không phải created_at
     [productId]
   );
   return res.rows;

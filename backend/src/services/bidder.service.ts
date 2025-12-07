@@ -374,7 +374,7 @@ export const postQuestion = async (
   try {
     // 1. Lưu câu hỏi vào DB
     await client.query(
-      `INSERT INTO Product_Questions (product_id, user_id, question_text) VALUES ($1, $2, $3)`,
+      `INSERT INTO Question_Answers (product_id, asker_id, question_text) VALUES ($1, $2, $3)`,
       [productId, userId, text]
     );
 
