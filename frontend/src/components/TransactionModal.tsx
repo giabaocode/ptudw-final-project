@@ -14,6 +14,7 @@ import {
 import { toast } from "sonner";
 import axios from "axios";
 import { useAuth } from "../context/AuthContext";
+import { ChatBox } from "./Chatbox";
 
 type TransactionStatus =
   | "pending_payment"
@@ -287,6 +288,11 @@ export function TransactionModal({
         </div>
 
         {renderContent()}
+        {status !== "cancelled" && (
+          <div className="mt-4 pt-4 border-t border-gray-100">
+            <ChatBox productId={product.id} />
+          </div>
+        )}
       </DialogContent>
     </Dialog>
   );
