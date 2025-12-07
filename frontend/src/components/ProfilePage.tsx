@@ -10,7 +10,7 @@ import { toast } from "sonner";
 import { 
   Trophy, Star, Heart, Gavel, Package, Settings, User, Lock, 
   ThumbsUp, ThumbsDown, ArrowUpCircle, DollarSign, X, 
-  ChevronLeft, ChevronRight, Calendar, Mail
+  ChevronLeft, ChevronRight, Calendar, Mail, Check, AlertCircle
 } from "lucide-react";
 import { Textarea } from "./ui/textarea";
 import { Label } from "./ui/label";
@@ -107,6 +107,9 @@ useEffect(() => {
   const wonBids = rawMyBids.filter(p => new Date(p.end_at).getTime() <= now && p.current_highest_bidder_id === user?.id);
   const activeBids = rawMyBids.filter(p => new Date(p.end_at).getTime() > now);
 
+  const sellingProducts = myProducts.filter(p => new Date(p.end_at).getTime() > now);
+  const soldProducts = myProducts.filter(p => new Date(p.end_at).getTime() <= now && p.current_highest_bidder_id);
+
   const paginate = (items: any[], page: number) => {
       const start = (page - 1) * ITEMS_PER_PAGE;
       return items.slice(start, start + ITEMS_PER_PAGE);
@@ -116,6 +119,8 @@ useEffect(() => {
       setRatingProduct(product);
       setRatingModalOpen(true);
   };
+
+  
 
   const handleRateSeller = async () => {
     if (!ratingProduct) return;
@@ -145,12 +150,41 @@ useEffect(() => {
     } catch (e) { toast.error("Lỗi đổi mật khẩu."); }
   };
 
-  const handleRequestUpgrade = async () => {
+// src/components/ProfilePage.tsx
+
+const handleRequestUpgrade = async () => {
+    // 👇 SỬA LẠI DÒNG NÀY: Dùng đúng tên "authToken" như trong ảnh của bạn
+    const rawToken = localStorage.getItem("authToken"); 
+    
+    if (!rawToken) {
+        toast.error("Lỗi: Không tìm thấy token (authToken)!");
+        return;
+    }
+
+    // Xử lý xóa dấu ngoặc kép nếu có (đề phòng)
+    const token = rawToken.replace(/"/g, ''); 
+
     try {
-        await axios.post("/api/bidder/upgrade-request", { reason: "Upgrade" }, { headers: { Authorization: `Bearer ${token}` } });
-        toast.success("Đã gửi yêu cầu!");
-    } catch (e) { toast.error("Lỗi gửi yêu cầu."); } finally { setIsUpgrading(false); }
-  };
+        const res = await fetch("/api/admin/request-upgrade", {
+            method: "POST",
+            headers: { 
+                "Content-Type": "application/json",
+                "Authorization": `Bearer ${token}` // Gửi token chuẩn
+            }
+        });
+
+        // ... (phần xử lý response giữ nguyên) ...
+        const data = await res.json();
+        if (res.ok) {
+             toast.success("Đã gửi yêu cầu thành công!");
+        } else {
+             toast.error(data.message || "Lỗi gửi yêu cầu");
+        }
+
+    } catch (e) {
+        toast.error("Lỗi kết nối");
+    }
+};
 
   const isQuillEmpty = (value: string) => {
     if (value.replace(/<(.|\n)*?>/g, '').trim().length === 0) {
@@ -190,7 +224,24 @@ useEffect(() => {
         toast.error(error.response?.data?.message || "Lỗi cập nhật mô tả.");
     }
   }
+  const handleRateWinner = async (productId: number, score: 'positive' | 'negative') => {
+    const comment = prompt(score === 'positive' ? "Nhập lời khen:" : "Nhập lý do trừ điểm:");
+    if (!comment) return;
+    try {
+        await axios.post(`/api/seller/products/${productId}/rate-winner`, 
+            { score, comment }, { headers: { Authorization: `Bearer ${token}` } }
+        );
+        toast.success("Đã gửi đánh giá!");
+    } catch (e: any) { toast.error(e.response?.data?.message || "Lỗi."); }
+  };
 
+  const handleCancelTrans = async (productId: number) => {
+    if (!confirm("Hủy đơn sẽ trừ điểm người thắng. Tiếp tục?")) return;
+    try {
+        await axios.post(`/api/seller/products/${productId}/cancel`, {}, { headers: { Authorization: `Bearer ${token}` } });
+        toast.success("Đã hủy đơn!");
+    } catch (e: any) { toast.error(e.response?.data?.message || "Lỗi."); }
+  };
 
   if (loading) return <div className="p-8 max-w-6xl mx-auto"><Skeleton className="h-48 w-full rounded-2xl" /></div>;
 
@@ -220,9 +271,15 @@ useEffect(() => {
           </div>
           <div className="flex gap-3">
              {user?.user_type === 'bidder' && (
-                <Button variant="outline" className="gap-2 border-gray-300" onClick={handleRequestUpgrade} disabled={isUpgrading}>
-                    <ArrowUpCircle className="w-4 h-4" /> Xin lên Seller
-                </Button>
+                <div className="mt-6 p-4 bg-yellow-50 border border-yellow-200 rounded-lg flex justify-between items-center">
+                <div>
+                    <h4 className="font-bold text-yellow-800">Nâng cấp tài khoản Seller</h4>
+                    <p className="text-sm text-yellow-700">Bạn muốn đăng bán sản phẩm? Hãy gửi yêu cầu để được cấp quyền bán trong 7 ngày.</p>
+                </div>
+                <button onClick={handleRequestUpgrade} className="bg-yellow-600 hover:bg-yellow-700 text-white px-4 py-2 rounded font-bold transition">
+                    Xin nâng cấp
+                </button>
+            </div>
              )}
              {user?.user_type === 'seller' && (
                 <Button onClick={() => onNavigate("post-product")} className="bg-[#1a73e8] hover:bg-[#1557b0] shadow-md gap-2 text-black">
@@ -401,7 +458,12 @@ useEffect(() => {
           </TabsContent>
 
           {user?.user_type === 'seller' && (
-            <TabsContent value="my-products" className="outline-none">
+            <TabsContent value="my-products" className="outline-none space-y-12">
+                <div>
+                    <h3 className="text-lg font-bold mb-4 flex items-center gap-2 text-gray-800">
+                        <Package className="w-5 h-5 text-blue-600"/>
+                        Đang bán ({sellingProducts.length})
+                    </h3>
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
                     {myProducts.map((p) => (
                         <div key={p.id} className="relative group">
@@ -444,12 +506,39 @@ useEffect(() => {
                         </div>
                     ))}
 
-                    {/* Giữ nguyên phần thông báo nếu kho hàng trống */}
-                    {myProducts.length === 0 && (
-                        <div className="col-span-full py-16 text-center text-gray-500 bg-white rounded-xl border border-dashed border-gray-200">
-                            Kho hàng trống.
-                        </div>
-                    )}
+                   {sellingProducts.length === 0 && <p className="col-span-full text-center text-gray-500 py-8 bg-gray-50 rounded-xl">Không có sản phẩm đang bán.</p>}
+                </div>
+                </div>
+                <div>
+                    <h3 className="text-lg font-bold mb-4 flex items-center gap-2 text-green-700">
+                        <Check className="w-5 h-5"/>
+                        Đã bán thành công ({soldProducts.length})
+                    </h3>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+                        {soldProducts.map((p) => (
+                            <div key={p.id} className="bg-white border border-gray-200 rounded-xl p-5 shadow-sm">
+                                <div className="flex gap-4 mb-4">
+                                    <div className="w-16 h-16 rounded-md bg-gray-100 overflow-hidden shrink-0">
+                                        <ImageWithFallback src={p.image || ""} className="w-full h-full object-cover"/>
+                                    </div>
+                                    <div>
+                                        <p className="font-bold text-gray-900 line-clamp-1">{p.name}</p>
+                                        <p className="text-sm text-green-600 font-bold mt-1">Chốt: ${Number(p.current_price).toLocaleString()}</p>
+                                        <p className="text-xs text-gray-500 mt-1">Người thắng: <span className="font-medium text-gray-800">{p.bidder_name || "Ẩn danh"}</span></p>
+                                    </div>
+                                </div>
+                                <div className="grid grid-cols-2 gap-3">
+                                    <Button onClick={() => handleRateWinner(p.id, 'positive')} className="bg-green-100 text-green-700 hover:bg-green-200 border-0">
+                                        <ThumbsUp className="w-4 h-4 mr-2"/> Đánh giá (+1)
+                                    </Button>
+                                    <Button onClick={() => handleCancelTrans(p.id)} className="bg-red-100 text-red-700 hover:bg-red-200 border-0">
+                                        <AlertCircle className="w-4 h-4 mr-2"/> Hủy đơn (-1)
+                                    </Button>
+                                </div>
+                            </div>
+                        ))}
+                        {soldProducts.length === 0 && <p className="col-span-full text-center text-gray-500 py-8 bg-gray-50 rounded-xl">Chưa có sản phẩm nào bán thành công.</p>}
+                    </div>
                 </div>
             </TabsContent>
           )}
@@ -493,74 +582,115 @@ useEffect(() => {
         </div>,
         document.body
       )}
-   {isAppendModalOpen && createPortal(
-  <div 
-    className="fixed inset-0 z-[99999] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4"
-    style={{ position: 'fixed', top: 0, left: 0, bottom: 0, right: 0 }}
-  >
-    {/* Click ra ngoài để đóng */}
-    <div className="absolute inset-0" onClick={() => setIsAppendModalOpen(false)}></div>
+   {isAppendModalOpen &&
+  createPortal(
+    <div
+      className="
+        fixed inset-0 z-[99999] flex items-center justify-center
+        bg-black/60 backdrop-blur-sm p-4
+      "
+      style={{ position: "fixed", top: 0, left: 0, bottom: 0, right: 0 }}
+    >
+      {/* Click ra ngoài để đóng */}
+      <div
+        className="fixed inset-0"
+        onClick={() => setIsAppendModalOpen(false)}
+      ></div>
 
-    {/* CONTAINER MODAL */}
-    <div className="relative bg-white w-full max-w-md rounded-xl shadow-2xl overflow-hidden flex flex-col animate-in zoom-in-95 duration-200">
-      
-      {/* HEADER */}
-      <div className="flex justify-between items-center px-5 py-4 border-b border-gray-100 bg-gray-50">
-        <h3 className="font-bold text-gray-800">Bổ sung mô tả</h3>
-        <button 
-          onClick={() => setIsAppendModalOpen(false)}
-          className="text-gray-400 hover:text-red-500 p-1 rounded hover:bg-red-50 transition-all"
+      {/* MODAL WRAPPER */}
+      <div
+        className="
+          relative z-10 bg-white w-full max-w-md rounded-xl shadow-2xl
+          border border-gray-1200
+          overflow-hidden flex flex-col
+          animate-in zoom-in-95 duration-200
+        "
+      >
+        {/* HEADER */}
+        <div
+          className="
+            flex items-center justify-between
+            px-5 py-4 bg-gray-50 border-b border-gray-100
+          "
         >
-          <X className="w-5 h-5" />
-        </button>
-      </div>
+          <h3 className="text-gray-800 font-bold">Bổ sung mô tả</h3>
 
-      {/* BODY */}
-      <div className="p-5 bg-white space-y-3">
-        <Label className="font-semibold text-sm text-gray-700">Nội dung chi tiết</Label>
-        
-        {/* Khung Editor - Chiều cao vừa phải */}
-        <div className="h-40 border border-gray-300 rounded-md overflow-hidden focus-within:ring-2 focus-within:ring-blue-100 transition-all">
-          <ReactQuill 
-            theme="snow"
-            value={appendContent}
-            onChange={setAppendContent}
-            className="h-full flex flex-col"
-            placeholder="Nhập nội dung cập nhật..."
-            modules={{
-              toolbar: [
-                ['bold', 'italic', 'underline'], // Dòng 1
-                [{'list': 'bullet'}, {'list': 'ordered'}], // Dòng 1
-              ]
-            }}
-          />
+          <button
+            onClick={() => setIsAppendModalOpen(false)}
+            className="
+              p-1 rounded text-gray-400 hover:text-red-500
+              hover:bg-red-50 transition-all
+            "
+          >
+            <X className="w-5 h-5" />
+          </button>
         </div>
-        <p className="text-xs text-gray-400 text-right italic">*Nội dung sẽ được thêm vào cuối mô tả hiện tại</p>
-      </div>
 
-      {/* FOOTER */}
-      <div className="px-5 py-4 bg-gray-50 border-t border-gray-100 flex justify-end gap-3">
-        <Button 
-          variant="outline" 
-          onClick={() => setIsAppendModalOpen(false)}
-          className="h-9 px-4 text-sm font-medium"
-        >
-          Hủy bỏ
-        </Button>
-        
-        {/* Nút Xác nhận - Fix màu nền và màu chữ rõ ràng */}
-        <Button 
-          onClick={handleAppendSubmit} 
-          className="h-9 px-4 text-sm font-bold bg-blue-600 hover:bg-blue-700 text-white shadow-md"
-        >
-          Xác nhận
-        </Button>
-      </div>
+        {/* BODY */}
+        <div className="p-5 bg-white space-y-3">
+          <Label className="text-sm font-semibold text-gray-700">
+            Nội dung chi tiết
+          </Label>
 
-    </div>
-  </div>,
-  document.body
-)}
+          {/* Quill Editor Wrapper */}
+          <div
+            className="
+              h-40 border border-gray-300 rounded-md overflow-hidden
+              focus-within:ring-2 focus-within:ring-blue-100
+              transition-all
+            "
+          >
+            <ReactQuill
+              theme="snow"
+              value={appendContent}
+              onChange={setAppendContent}
+              className="h-full flex flex-col"
+              placeholder="Nhập nội dung cập nhật..."
+              modules={{
+                toolbar: [
+                  ["bold", "italic", "underline"],
+                  [{ list: "bullet" }, { list: "ordered" }],
+                ],
+              }}
+            />
+          </div>
+
+          <p className="text-xs text-right text-gray-400 italic">
+            *Nội dung sẽ được thêm vào cuối mô tả hiện tại
+          </p>
+        </div>
+
+        {/* FOOTER */}
+        <div
+          className="
+            px-5 py-4 bg-gray-50 border-t border-gray-100
+            flex justify-end gap-3
+          "
+        >
+          <Button
+            variant="outline"
+            onClick={() => setIsAppendModalOpen(false)}
+            className="h-9 px-4 text-sm font-medium"
+          >
+            Hủy bỏ
+          </Button>
+
+          <Button
+            onClick={handleAppendSubmit}
+            className="
+              h-9 px-4 text-sm font-bold
+              bg-blue-600 hover:bg-blue-700
+              text-black shadow-md
+            "
+          >
+            Xác nhận
+          </Button>
+        </div>
+      </div>
+    </div>,
+    document.body
+  )}
+
     </div>
   );
 }

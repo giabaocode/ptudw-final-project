@@ -40,6 +40,11 @@ export function LoginPage({ onNavigate }: LoginPageProps) {
          // Nếu trên URL vẫn còn tham số auction, ưu tiên chuyển về đó
          onNavigate('auction', Number(idParam));
       } else {
+        if (user.user_type === 'admin') {
+             onNavigate("dashboard");
+         } else {
+             onNavigate("profile");
+         }
          onNavigate("profile");
       }
       // ---------------------

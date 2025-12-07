@@ -1,27 +1,43 @@
-import { Request, Response, NextFunction } from 'express';
-import jwt from 'jsonwebtoken';
+// backend/src/utils/auth.ts
+import { Request, Response, NextFunction } from "express";
+import jwt from "jsonwebtoken";
+import dotenv from "dotenv";
 
-const JWT_SECRET = process.env.JWT_SECRET || 'DEFAULT_SECRET';
+dotenv.config();
 
-// Middleware (phần mềm trung gian) để kiểm tra token
 export const authenticateToken = (req: Request, res: Response, next: NextFunction) => {
-  const authHeader = req.headers['authorization'];
-  // Token sẽ có dạng "Bearer <TOKEN>"
-  const token = authHeader && authHeader.split(' ')[1];
+  // 1. Lấy header
+  const authHeader = req.headers["authorization"];
+  console.log("🔹 [DEBUG] Auth Header nhận được:", authHeader);
 
-  if (token == null) {
-    // 401 Unauthorized - Không có quyền
-    return res.status(401).json({ message: "Token không được cung cấp." });
+  // 2. Tách token
+  const token = authHeader && authHeader.split(" ")[1];
+  
+  if (!token) {
+    console.log("❌ [DEBUG] Không tìm thấy Token trong header");
+    return res.status(401).json({ message: "Không tìm thấy token" });
   }
 
-  jwt.verify(token, JWT_SECRET, (err: any, user: any) => {
+  // 3. Kiểm tra biến môi trường (QUAN TRỌNG NHẤT)
+  // Nếu dòng này in ra undefined -> Server không đọc được file .env
+  console.log("🔹 [DEBUG] JWT_SECRET hiện tại:", process.env.JWT_SECRET); 
+
+  if (!process.env.JWT_SECRET) {
+    console.log("❌ [DEBUG] LỖI SERVER: Chưa cấu hình JWT_SECRET");
+    return res.status(500).json({ message: "Lỗi cấu hình Server (Thiếu Secret)" });
+  }
+
+  // 4. Verify
+  jwt.verify(token, process.env.JWT_SECRET, (err: any, user: any) => {
     if (err) {
-      // 403 Forbidden - Token không hợp lệ
-      return res.status(403).json({ message: "Token không hợp lệ." });
+      console.log("❌ [DEBUG] Verify thất bại. Lý do:", err.message);
+      // In ra token để xem có bị thừa dấu ngoặc kép không
+      console.log("🔹 [DEBUG] Token bị lỗi là:", token); 
+      return res.status(403).json({ message: "Token không hợp lệ: " + err.message });
     }
-    
-    // Gắn thông tin user (đã giải mã từ token) vào request
+
+    console.log("✅ [DEBUG] Verify thành công! User ID:", user.id);
     (req as any).user = user;
-    next(); // Cho phép đi tiếp
+    next();
   });
 };

@@ -26,7 +26,7 @@ export function Header({
   onSearch,
 }: HeaderProps) {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
-  const { isLoggedIn, logout } = useAuth();
+  const { isLoggedIn, logout, user } = useAuth();
   const [categories, setCategories] = useState<Category[]>([]);
   const [keyword, setKeyword] = useState("");
 
@@ -154,6 +154,19 @@ export function Header({
                   <User className="h-5 w-5" />
                 </Button>
                 {/* Nút Logout cho Desktop */}
+                {/* --- THÊM NÚT CHO ADMIN --- */}
+                {/* Bạn cần đảm bảo đã lấy user từ useAuth() ở đầu component Header */}
+                {/* Nếu chưa có user, hãy sửa: const { isLoggedIn, logout, user } = useAuth(); */}
+                
+                {user?.user_type === 'admin' && (
+                  <Button 
+                    variant="ghost" 
+                    onClick={() => onNavigate("admin-dashboard")}
+                    className="text-red-600 font-bold"
+                  >
+                    Admin CP
+                  </Button>
+                )}
                 <Button
                   variant="ghost"
                   size="icon"
