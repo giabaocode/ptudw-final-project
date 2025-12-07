@@ -260,7 +260,7 @@ export const getSellerInfo = async (sellerId: number) => {
 export const getBidHistory = async (productId: number) => {
   const res = await pool.query(
     `
-        SELECT b.amount, b.created_at, u.full_name
+        SELECT b.amount, b.created_at, u.full_name, b.bidder_id
         FROM Bids b
         JOIN Users u ON b.bidder_id = u.id
         WHERE b.product_id = $1
