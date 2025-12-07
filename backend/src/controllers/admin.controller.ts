@@ -114,3 +114,21 @@ export const rejectUpgrade = async (req: Request, res: Response) => {
     res.status(400).json({ success: false, message: error.message });
   }
 };
+
+export const updateUserRole = async (req: Request, res: Response) => {
+  try {
+    const id = parseInt(req.params.id);
+    const { user_type } = req.body; // Lấy user_type từ frontend gửi lên
+
+    if (!user_type) {
+      return res
+        .status(400)
+        .json({ success: false, message: "Thiếu thông tin user_type" });
+    }
+
+    const result = await adminService.updateUserRole(id, user_type);
+    res.json({ success: true, ...result });
+  } catch (error: any) {
+    res.status(400).json({ success: false, message: error.message });
+  }
+};

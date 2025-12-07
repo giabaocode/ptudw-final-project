@@ -13,6 +13,7 @@ import {
   Check,
   Eye,
 } from "lucide-react"; // Đảm bảo bạn đã cài lucide-react
+import { createPortal } from "react-dom";
 
 // --- TYPES ---
 interface Category {
@@ -52,7 +53,12 @@ export const AdminDashboard = ({
 }) => {
   const [tab, setTab] = useState<"cats" | "prods" | "users">("users");
   const [loading, setLoading] = useState(false);
+  const [mounted, setMounted] = useState(false);
 
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+  const [showCatModal, setShowCatModal] = useState(false); // <--- THÊM BIẾN NÀY
   // Data State
   const [cats, setCats] = useState<Category[]>([]);
   const [prods, setProds] = useState<Product[]>([]);
@@ -65,6 +71,9 @@ export const AdminDashboard = ({
   const [parentId, setParentId] = useState<number | "">("");
 
   const [editingUser, setEditingUser] = useState<User | null>(null);
+
+  const [showUserModal, setShowUserModal] = useState(false);
+  const [tempRole, setTempRole] = useState("");
 
   // --- API HELPER ---
   const apiFetch = async (url: string, options?: RequestInit) => {
@@ -111,18 +120,80 @@ export const AdminDashboard = ({
   }, [tab]);
 
   // --- HANDLERS DANH MỤC ---
+  const handleEditClick = (user: User) => {
+    setEditingUser(user);
+    setTempRole(user.user_type); // Lấy role hiện tại gán vào state tạm
+    setShowUserModal(true);
+  };
+
+  const handleSaveUserRole = async () => {
+    if (!editingUser) return;
+    try {
+      // Gọi API update (Giả sử BE có route PUT /api/admin/users/:id)
+      await apiFetch(`/api/admin/users/${editingUser.id}`, {
+        method: "PUT", // Hoặc PATCH tùy backend của bạn
+        body: JSON.stringify({ user_type: tempRole }),
+      });
+
+      toast.success("Cập nhật vai trò thành công!");
+
+      // Cập nhật lại danh sách local để không phải load lại trang
+      setUsers(
+        users.map((u) =>
+          u.id === editingUser.id ? { ...u, user_type: tempRole } : u
+        )
+      );
+
+      // Đóng modal
+      setShowUserModal(false);
+      setEditingUser(null);
+    } catch (e: any) {
+      toast.error(e.message || "Lỗi khi cập nhật");
+    }
+  };
+  // --- HÀM MỚI: Hủy chế độ sửa ---
+  const handleCancelEdit = () => {
+    setEditingCat(null);
+    setNewCatName("");
+    setParentId("");
+  };
+  // --- HÀM MỚI: Đưa dữ liệu lên form khi bấm nút Sửa ---
+  // --- HANDLER: Mở Modal khi nhấn nút Sửa ---
+  const handleEditCatClick = (cat: Category) => {
+    setEditingCat(cat);
+    setNewCatName(cat.name);
+    setParentId(cat.parent_id || "");
+    setShowCatModal(true); // <--- Mở Modal
+  };
+
+  // --- HANDLER: Mở Modal khi nhấn Thêm mới (nếu muốn dùng chung modal) ---
+  const handleOpenCreateModal = () => {
+    setEditingCat(null);
+    setNewCatName("");
+    setParentId("");
+    setShowCatModal(true);
+  };
+
+  // --- HANDLER: Lưu (Dùng chung cho cả Tạo mới và Sửa) ---
   const handleSaveCategory = async () => {
+    if (!newCatName.trim()) {
+      toast.error("Vui lòng nhập tên danh mục");
+      return;
+    }
+
     try {
       if (editingCat) {
-        // Update (Cần BE hỗ trợ PUT, nếu chưa có thì dùng tạm logic xóa đi tạo lại hoặc thêm route mới)
-        // Ở đây giả sử bạn thêm route PUT /categories/:id
-        // Nếu chưa có, bạn cần thêm vào Backend.
-        // Tạm thời mình sẽ alert nếu chưa có API update
-        alert(
-          "Chức năng cập nhật cần bổ sung API PUT /api/admin/categories/:id ở Backend"
-        );
+        // --- CẬP NHẬT ---
+        await apiFetch(`/api/admin/categories/${editingCat.id}`, {
+          method: "PUT",
+          body: JSON.stringify({
+            name: newCatName,
+            parent_id: parentId || null,
+          }),
+        });
+        toast.success("Cập nhật danh mục thành công");
       } else {
-        // Create
+        // --- TẠO MỚI ---
         await apiFetch("/api/admin/categories", {
           method: "POST",
           body: JSON.stringify({
@@ -132,9 +203,12 @@ export const AdminDashboard = ({
         });
         toast.success("Thêm danh mục thành công");
       }
+
+      // Đóng modal và reset
+      setShowCatModal(false);
+      setEditingCat(null);
       setNewCatName("");
       setParentId("");
-      setEditingCat(null);
       loadAll();
     } catch (e: any) {
       toast.error(e.message);
@@ -189,10 +263,14 @@ export const AdminDashboard = ({
   };
 
   // --- RENDER UI ---
+  // --- RENDER UI ---
   return (
     <div className="flex min-h-screen bg-gray-100 font-sans text-gray-900">
+      {/* ... (Phần Sidebar và Main Content giữ nguyên không đổi) ... */}
+
       {/* Sidebar */}
       <aside className="w-64 bg-[#1e293b] text-white flex flex-col fixed h-full shadow-xl z-10">
+        {/* ... code sidebar ... */}
         <div className="p-6 border-b border-gray-700">
           <h2 className="text-2xl font-bold tracking-wide text-blue-400">
             ADMIN CP
@@ -260,7 +338,7 @@ export const AdminDashboard = ({
           </div>
         ) : (
           <div className="space-y-6 animate-in fade-in duration-300">
-            {/* === TAB USERS === */}
+            {/* ... (Phần nội dung các Tab giữ nguyên code của bạn) ... */}
             {tab === "users" && (
               <>
                 {/* 1. Upgrade Requests Section */}
@@ -375,8 +453,10 @@ export const AdminDashboard = ({
                           </td>
                           <td className="px-6 py-4 text-right flex justify-end gap-2">
                             <button
+                              // [SỬA Ở ĐÂY] Gọi hàm handleEditClick
+                              onClick={() => handleEditClick(u)}
                               className="p-2 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-full transition-colors"
-                              title="Xem/Sửa"
+                              title="Sửa vai trò"
                             >
                               <Edit className="w-4 h-4" />
                             </button>
@@ -399,35 +479,20 @@ export const AdminDashboard = ({
             {/* === TAB CATEGORIES === */}
             {tab === "cats" && (
               <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
-                <div className="flex gap-4 mb-8 bg-gray-50 p-4 rounded-lg border border-gray-100">
-                  <input
-                    value={newCatName}
-                    onChange={(e) => setNewCatName(e.target.value)}
-                    className="flex-1 border-gray-300 rounded-lg px-4 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none"
-                    placeholder="Nhập tên danh mục mới..."
-                  />
-                  <select
-                    value={parentId}
-                    onChange={(e) => setParentId(Number(e.target.value) || "")}
-                    className="w-48 border-gray-300 rounded-lg px-4 py-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none"
-                  >
-                    <option value="">-- Danh mục cha --</option>
-                    {cats
-                      .filter((c) => !c.parent_name)
-                      .map((c) => (
-                        <option key={c.id} value={c.id}>
-                          {c.name}
-                        </option>
-                      ))}
-                  </select>
+                {/* Nút thêm mới nằm gọn gàng */}
+                <div className="mb-6 flex justify-between items-center">
+                  <h3 className="font-bold text-gray-800 text-lg">
+                    Danh sách danh mục
+                  </h3>
                   <button
-                    onClick={handleSaveCategory}
-                    className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-2 rounded-lg font-bold shadow-sm flex items-center gap-2"
+                    onClick={handleOpenCreateModal}
+                    className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg font-bold shadow-sm flex items-center gap-2"
                   >
-                    <Plus className="w-4 h-4" /> Thêm mới
+                    <Plus className="w-4 h-4" /> Thêm danh mục
                   </button>
                 </div>
 
+                {/* DANH SÁCH DANH MỤC */}
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   {cats.map((c) => (
                     <div
@@ -448,7 +513,10 @@ export const AdminDashboard = ({
                         </div>
                       </div>
                       <div className="flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                        <button className="p-1.5 text-gray-500 hover:text-blue-600 hover:bg-blue-50 rounded">
+                        <button
+                          onClick={() => handleEditCatClick(c)} // <--- Gọi hàm mở Modal
+                          className="p-1.5 text-gray-500 hover:text-blue-600 hover:bg-blue-50 rounded"
+                        >
                           <Edit className="w-4 h-4" />
                         </button>
                         <button
@@ -511,7 +579,195 @@ export const AdminDashboard = ({
           </div>
         )}
       </main>
-      <Toaster position="top-right" />
+
+      {/* --- PHẦN SỬA LỖI Ở ĐÂY --- */}
+      {/* 1. MODAL EDIT USER ROLE (ĐÃ SỬA UI) */}
+      {mounted &&
+        showUserModal &&
+        editingUser &&
+        createPortal(
+          <div
+            className="fixed inset-0 z-[9999] flex items-center justify-center p-4"
+            style={{ position: "fixed", top: 0, left: 0, right: 0, bottom: 0 }}
+          >
+            {/* Overlay */}
+            <div
+              className="absolute inset-0 bg-black/60 backdrop-blur-sm"
+              onClick={() => setShowUserModal(false)}
+            />
+
+            {/* Modal Box */}
+            <div className="relative bg-white rounded-xl shadow-2xl w-full max-w-md overflow-hidden animate-in fade-in zoom-in duration-200 z-10">
+              <div className="px-6 py-4 border-b border-gray-100 flex justify-between items-center bg-gray-50">
+                <h3 className="font-bold text-gray-800">Cập nhật người dùng</h3>
+                <button
+                  onClick={() => setShowUserModal(false)}
+                  className="text-gray-400 hover:text-gray-600 transition-colors"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+
+              <div className="p-6 space-y-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Tên người dùng
+                  </label>
+                  <input
+                    disabled
+                    value={editingUser.full_name}
+                    className="w-full bg-gray-100 border border-gray-300 rounded-lg px-3 py-2 text-sm text-gray-500 cursor-not-allowed"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Email
+                  </label>
+                  <input
+                    disabled
+                    value={editingUser.email}
+                    className="w-full bg-gray-100 border border-gray-300 rounded-lg px-3 py-2 text-sm text-gray-500 cursor-not-allowed"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Vai trò (Role)
+                  </label>
+                  <select
+                    value={tempRole}
+                    onChange={(e) => setTempRole(e.target.value)}
+                    className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none bg-white text-gray-900"
+                  >
+                    <option value="bidder">Bidder (Người mua)</option>
+                    <option value="seller">Seller (Người bán)</option>
+                    <option value="admin">Admin (Quản trị)</option>
+                  </select>
+                </div>
+              </div>
+              <div className="px-6 py-4 bg-gray-50 flex justify-end gap-3">
+                <button
+                  onClick={() => setShowUserModal(false)}
+                  className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50"
+                >
+                  Hủy bỏ
+                </button>
+                <button
+                  onClick={handleSaveUserRole}
+                  className="px-4 py-2 text-sm font-bold text-white bg-blue-600 rounded-lg hover:bg-blue-700 shadow-sm"
+                >
+                  Lưu thay đổi
+                </button>
+              </div>
+            </div>
+          </div>,
+          document.body
+        )}
+
+      {/* 2. MODAL CATEGORY (ĐÃ TÁCH RA KHỎI MODAL USER) */}
+      {mounted &&
+        showCatModal &&
+        createPortal(
+          <div
+            className="fixed inset-0 z-[9999]"
+            style={{
+              position: "fixed",
+              top: 0,
+              left: 0,
+              width: "100vw",
+              height: "100vh",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              zIndex: 9999,
+            }}
+          >
+            {/* Overlay */}
+            <div
+              className="absolute inset-0 bg-black/60 backdrop-blur-sm"
+              style={{
+                position: "absolute",
+                width: "100%",
+                height: "100%",
+              }}
+              onClick={() => setShowCatModal(false)}
+            />
+
+            {/* Modal Box */}
+            <div
+              className="relative bg-white rounded-xl shadow-2xl w-full max-w-md overflow-hidden animate-in fade-in zoom-in duration-200"
+              style={{ position: "relative", zIndex: 10000 }}
+            >
+              <div className="px-6 py-4 border-b border-gray-100 flex justify-between items-center bg-gray-50">
+                <h3 className="font-bold text-gray-800">
+                  {editingCat ? "Chỉnh sửa danh mục" : "Thêm danh mục mới"}
+                </h3>
+                <button
+                  onClick={() => setShowCatModal(false)}
+                  className="text-gray-400 hover:text-gray-600 transition-colors"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+
+              <div className="p-6 space-y-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Tên danh mục
+                  </label>
+                  <input
+                    value={newCatName}
+                    onChange={(e) => setNewCatName(e.target.value)}
+                    placeholder="Ví dụ: Đồ điện tử..."
+                    className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none"
+                    autoFocus
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Danh mục cha (Tùy chọn)
+                  </label>
+                  <select
+                    value={parentId}
+                    onChange={(e) => setParentId(Number(e.target.value) || "")}
+                    className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none bg-white text-gray-900"
+                  >
+                    <option value="">-- Không có (Danh mục gốc) --</option>
+                    {cats
+                      // Lọc bỏ chính nó để tránh vòng lặp cha-con
+                      .filter((c) => !editingCat || c.id !== editingCat.id)
+                      .map((c) => (
+                        <option key={c.id} value={c.id}>
+                          {c.name}
+                        </option>
+                      ))}
+                  </select>
+                </div>
+              </div>
+
+              <div className="px-6 py-4 bg-gray-50 flex justify-end gap-3">
+                <button
+                  onClick={() => setShowCatModal(false)}
+                  className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
+                >
+                  Hủy bỏ
+                </button>
+                <button
+                  onClick={handleSaveCategory}
+                  className="px-4 py-2 text-sm font-bold text-white bg-blue-600 rounded-lg hover:bg-blue-700 shadow-sm transition-colors flex items-center gap-2"
+                >
+                  {editingCat ? (
+                    <Check className="w-4 h-4" />
+                  ) : (
+                    <Plus className="w-4 h-4" />
+                  )}
+                  {editingCat ? "Lưu thay đổi" : "Tạo mới"}
+                </button>
+              </div>
+            </div>
+          </div>,
+          document.body
+        )}
     </div>
   );
 };

@@ -170,3 +170,36 @@ export const rejectUpgradeRequest = async (
   );
   return { message: "Đã từ chối yêu cầu" };
 };
+
+export const updateUserRole = async (id: number, userType: string) => {
+  // Kiểm tra userType hợp lệ
+  if (!["bidder", "seller", "admin"].includes(userType)) {
+    throw new Error(
+      "Loại người dùng không hợp lệ (chỉ chấp nhận: bidder, seller, admin)"
+    );
+  }
+
+  const client = await pool.connect();
+  try {
+    await client.query("BEGIN");
+
+    // Nếu chuyển thành Seller, có thể bạn muốn cấp hạn dùng mặc định (ví dụ 7 ngày) nếu chưa có
+    // Nếu muốn đơn giản chỉ đổi role thì dùng câu lệnh UPDATE thường.
+    // Dưới đây là logic: Update role. Nếu là seller thì update thêm ngày hết hạn (nếu đang null)
+
+    let query = `UPDATE Users SET user_type = $1 WHERE id = $2`;
+
+    // Nếu chuyển sang seller, logic tùy chỉnh: có thể set expiry_date = now + 7 days
+    // Nhưng để an toàn và đơn giản theo UI hiện tại, ta chỉ update user_type
+
+    await client.query(query, [userType, id]);
+
+    await client.query("COMMIT");
+    return { message: "Cập nhật vai trò người dùng thành công" };
+  } catch (e) {
+    await client.query("ROLLBACK");
+    throw e;
+  } finally {
+    client.release();
+  }
+};

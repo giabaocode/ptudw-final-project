@@ -41,6 +41,7 @@ import { Skeleton } from "./ui/skeleton";
 import { formatDistanceToNow, format } from "date-fns";
 import { vi } from "date-fns/locale";
 import { createPortal } from "react-dom";
+import { UserX } from "lucide-react";
 
 interface AuctionPageProps {
   onNavigate: (page: string, id?: any) => void;
@@ -175,6 +176,16 @@ export function AuctionPage({ onNavigate, auctionId }: AuctionPageProps) {
   const [pendingBidAmount, setPendingBidAmount] = useState<number | null>(null);
   const [isBidding, setIsBidding] = useState(false);
 
+  // --- [MỚI] STATE CHO MODAL KICK (TỪ CHỐI) ---
+  const kickBtnRef = useRef<HTMLButtonElement | null>(null);
+  const [showKickModal, setShowKickModal] = useState(false);
+  const [kickModalReady, setKickModalReady] = useState(false);
+  const [bidderToKick, setBidderToKick] = useState<{
+    id: number;
+    name: string;
+  } | null>(null);
+  const [isKicking, setIsKicking] = useState(false);
+
   // Ref cho interval để clear khi component unmount hoặc khi chuyển sản phẩm
   const pollingIntervalRef = useRef<NodeJS.Timeout | null>(null);
   const isComponentMounted = useRef(true);
@@ -296,7 +307,35 @@ export function AuctionPage({ onNavigate, auctionId }: AuctionPageProps) {
       }
     };
   }, [auctionId, fetchAuctionData]);
+  // --- [MỚI] EFFECT CHO MODAL KICK ---
+  // Animation hiện modal
+  useEffect(() => {
+    if (showKickModal) {
+      setKickModalReady(false);
+      const t = window.setTimeout(() => setKickModalReady(true), 20);
+      return () => window.clearTimeout(t);
+    } else {
+      setKickModalReady(false);
+    }
+  }, [showKickModal]);
 
+  // Focus vào nút xác nhận khi mở
+  useEffect(() => {
+    if (kickModalReady && kickBtnRef.current) {
+      kickBtnRef.current.focus();
+    }
+  }, [kickModalReady]);
+
+  // Khóa cuộn trang (kết hợp logic cũ hoặc thêm mới)
+  useEffect(() => {
+    if (showKickModal) {
+      const prevOverflow = document.body.style.overflow;
+      document.body.style.overflow = "hidden";
+      return () => {
+        document.body.style.overflow = prevOverflow || "";
+      };
+    }
+  }, [showKickModal]);
   // Cleanup khi component unmount
   useEffect(() => {
     return () => {
@@ -489,25 +528,32 @@ export function AuctionPage({ onNavigate, auctionId }: AuctionPageProps) {
     }
   };
 
-  // Hàm xử lý từ chối
-  const handleKickBidder = async (bidderId: number) => {
-    if (
-      !confirm(
-        "⚠️ CẢNH BÁO: Bạn có chắc muốn từ chối người này?\n\n- Toàn bộ giá họ đặt sẽ bị xóa.\n- Họ sẽ bị cấm đấu giá lại.\n- Sản phẩm sẽ chuyển cho người cao thứ nhì."
-      )
-    )
-      return;
+  // 1. Hàm mở modal khi nhấn nút "Từ chối" ở bảng
+  const openKickModal = (bidderId: number, bidderName: string) => {
+    setBidderToKick({ id: bidderId, name: bidderName });
+    setShowKickModal(true);
+  };
+
+  // 2. Hàm thực thi gọi API (gắn vào nút trong Modal)
+  const executeKick = async () => {
+    if (!bidderToKick) return;
+    setIsKicking(true);
 
     try {
       await axios.post(
-        `/api/seller/products/${auctionId}/kick/${bidderId}`,
+        `/api/seller/products/${auctionId}/kick/${bidderToKick.id}`,
         {},
         { headers: { Authorization: `Bearer ${token}` } }
       );
-      toast.success("Đã từ chối thành công! Giá đã được cập nhật.");
-      fetchAuctionData(); // Tải lại trang ngay lập tức
+      toast.success(`Đã từ chối ${bidderToKick.name} thành công!`);
+      setShowKickModal(false);
+      setBidderToKick(null);
+      fetchAuctionData(); // Tải lại dữ liệu ngay
     } catch (e: any) {
+      console.error(e);
       toast.error(e.response?.data?.message || "Lỗi khi thực hiện.");
+    } finally {
+      setIsKicking(false);
     }
   };
 
@@ -684,8 +730,12 @@ export function AuctionPage({ onNavigate, auctionId }: AuctionPageProps) {
                                     variant="destructive"
                                     size="sm"
                                     className="h-8 px-3 bg-red-100 text-red-600 hover:bg-red-600 hover:text-white border-0 transition-colors"
+                                    // [SỬA ĐỔI Ở ĐÂY] Gọi hàm mở modal thay vì hàm cũ
                                     onClick={() =>
-                                      handleKickBidder(bid.bidder_id)
+                                      openKickModal(
+                                        bid.bidder_id,
+                                        bid.bidder_name
+                                      )
                                     }
                                   >
                                     Từ chối
@@ -1128,6 +1178,115 @@ export function AuctionPage({ onNavigate, auctionId }: AuctionPageProps) {
                       className="bg-[#0A84FF] hover:bg-[#0A84FF]/90 font-bold px-6 py-2 rounded-md shadow-lg shadow-blue-500/20 disabled:opacity-60"
                     >
                       {isBidding ? "Đang xử lý..." : "Xác nhận ra giá"}
+                    </button>
+                  </div>
+                </div>
+              </div>,
+              document.body
+            )
+          : null)}
+      {/* --- [MỚI] MODAL XÁC NHẬN KICK (TỪ CHỐI) --- */}
+      {showKickModal &&
+        (typeof document !== "undefined"
+          ? createPortal(
+              <div
+                className="fixed inset-0 z-[9999] flex items-center justify-center p-4"
+                aria-modal="true"
+                role="dialog"
+                style={{
+                  position: "fixed",
+                  top: 0,
+                  left: 0,
+                  right: 0,
+                  bottom: 0,
+                }}
+              >
+                {/* Overlay */}
+                <div
+                  className="absolute inset-0 bg-black/60 backdrop-blur-sm transition-opacity"
+                  onClick={() => setShowKickModal(false)}
+                />
+
+                {/* Modal Box */}
+                <div
+                  onClick={(e) => e.stopPropagation()}
+                  className={`relative bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden transition-all duration-200 ${
+                    kickModalReady
+                      ? "opacity-100 scale-100"
+                      : "opacity-0 scale-95"
+                  }`}
+                >
+                  {/* Header - Màu đỏ cảnh báo */}
+                  <div className="bg-white px-6 py-6 border-b border-gray-100 flex items-center gap-4">
+                    <div className="w-12 h-12 bg-red-50 rounded-full flex items-center justify-center flex-shrink-0">
+                      {/* Dùng AlertTriangle hoặc UserX */}
+                      <AlertTriangle className="h-6 w-6 text-red-600" />
+                    </div>
+                    <div>
+                      <h3 className="text-lg font-bold text-gray-900">
+                        Xác nhận từ chối
+                      </h3>
+                      <p className="text-sm text-gray-500">
+                        Hành động này không thể hoàn tác.
+                      </p>
+                    </div>
+                    <button
+                      onClick={() => setShowKickModal(false)}
+                      className="absolute top-4 right-4 text-gray-400 hover:text-gray-600 transition-colors"
+                    >
+                      <X className="h-5 w-5" />
+                    </button>
+                  </div>
+
+                  {/* Content */}
+                  <div className="px-6 py-6 space-y-4">
+                    <div className="bg-red-50 p-4 rounded-xl border border-red-100">
+                      <p className="text-red-800 font-medium mb-1">
+                        Bạn đang từ chối người dùng:
+                      </p>
+                      <p className="text-xl font-bold text-red-600 truncate">
+                        {bidderToKick?.name}
+                      </p>
+                    </div>
+
+                    <div className="space-y-3 text-sm text-gray-600 bg-gray-50 p-4 rounded-xl">
+                      <p className="font-semibold text-gray-900">Hệ quả:</p>
+                      <ul className="list-disc pl-5 space-y-1">
+                        <li>
+                          Toàn bộ giá người này đặt sẽ bị{" "}
+                          <span className="font-bold text-red-600">xóa bỏ</span>
+                          .
+                        </li>
+                        <li>
+                          Người này sẽ bị{" "}
+                          <span className="font-bold text-red-600">cấm</span>{" "}
+                          đấu giá lại sản phẩm này.
+                        </li>
+                        <li>
+                          Sản phẩm sẽ được chuyển cho người có giá cao tiếp
+                          theo.
+                        </li>
+                      </ul>
+                    </div>
+                  </div>
+
+                  {/* Footer */}
+                  <div className="px-6 py-4 bg-gray-50 flex gap-3 justify-end">
+                    <Button
+                      variant="outline"
+                      onClick={() => setShowKickModal(false)}
+                      className="font-medium border-gray-200 hover:bg-white hover:text-gray-900"
+                    >
+                      Hủy bỏ
+                    </Button>
+
+                    <button
+                      ref={kickBtnRef}
+                      onClick={executeKick}
+                      disabled={isKicking}
+                      className="bg-red-600 hover:bg-red-700 text-white font-bold px-6 py-2 rounded-md shadow-lg shadow-red-500/20 disabled:opacity-60 transition-all"
+                    >
+                      {isKicking ? "Đang xử lý..." : "Xác nhận Từ chối"}
                     </button>
                   </div>
                 </div>

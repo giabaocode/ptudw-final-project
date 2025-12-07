@@ -9,6 +9,7 @@ import {
   getUsers,
   deleteUser,
   requestUpgrade,
+  updateUserRole,
   getUpgradeRequests,
   approveUpgrade,
   rejectUpgrade,
@@ -43,4 +44,5 @@ router.get("/upgrade-requests", authenticateToken, getUpgradeRequests);
 router.post("/upgrade-requests/:id/approve", authenticateToken, approveUpgrade);
 router.post("/upgrade-requests/:id/reject", authenticateToken, rejectUpgrade);
 
+router.put("/users/:id", authenticateToken, updateUserRole);
 export default router;
