@@ -21,13 +21,14 @@ import {
   SelectValue,
 } from "./ui/select";
 
+import { useAuth } from "../context/AuthContext";
+import { toast } from "sonner";
+
 interface LandingPageProps {
   onNavigate: (page: string, id?: number) => void;
   categoryId?: number | null;
   searchQuery?: string;
-  // --- [1] THÊM PROP NÀY ---
   onSearch?: (query: string) => void;
-  // ------------------------
 }
 
 const ITEMS_PER_PAGE = 8;
@@ -41,7 +42,6 @@ const SkeletonCard = () => (
   </div>
 );
 
-// Component Phân trang
 const PaginationControls = ({
   currentPage,
   totalPages,
@@ -83,7 +83,7 @@ export function LandingPage({
   onNavigate,
   categoryId,
   searchQuery,
-  onSearch, // --- [2] LẤY PROP RA ---
+  onSearch,
 }: LandingPageProps) {
   const [topEndingSoon, setTopEndingSoon] = useState<Auction[]>([]);
   const [topMostBids, setTopMostBids] = useState<Auction[]>([]);
@@ -98,7 +98,37 @@ export function LandingPage({
   const [sortOption, setSortOption] = useState("default");
   const [loading, setLoading] = useState(true);
 
-  // --- [3] STATE CHO THANH TÌM KIẾM HERO ---
+  // --- [1] TỪ NHÁNH TEST-2: XỬ LÝ WATCHLIST ---
+  const { isLoggedIn, token } = useAuth();
+
+  const handleAddToWatchlist = async (e: React.MouseEvent, productId: number) => {
+    e.preventDefault(); // Ngăn chuyển trang
+    e.stopPropagation();
+
+    if (!isLoggedIn) {
+      toast.error("Vui lòng đăng nhập để thêm vào danh sách theo dõi.");
+      onNavigate("login");
+      return;
+    }
+    try {
+      await axios.post(
+        `/api/bidder/products/${productId}/watchlist`,
+        {},
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
+      toast.success("Đã thêm vào danh sách theo dõi!");
+    } catch (error: any) {
+      if (error.response && error.response.status === 409) {
+        toast.info("Sản phẩm đã có trong danh sách theo dõi của bạn.");
+      } else {
+        console.error("Lỗi khi thêm vào danh sách theo dõi:", error);
+        toast.error("Thêm vào danh sách theo dõi thất bại.");
+      }
+    }
+  };
+  // --------------------------------------------
+
+  // --- [2] TỪ NHÁNH PAGINATION: TÌM KIẾM HERO ---
   const [heroKeyword, setHeroKeyword] = useState("");
 
   const handleHeroSearch = () => {
@@ -106,7 +136,7 @@ export function LandingPage({
       onSearch(heroKeyword);
     }
   };
-  // -----------------------------------------
+  // ----------------------------------------------
 
   useEffect(() => {
     const fetchData = async () => {
@@ -239,6 +269,8 @@ export function LandingPage({
                 categoryId={product.category_id}
                 onCategoryClick={(id) => onNavigate("categories", id)}
                 onViewDetails={(id) => onNavigate("product", id)}
+                // Truyền hàm Watchlist vào đây
+                onAddToWatchlist={(e) => handleAddToWatchlist(e, product.id)}
               />
             ))}
           </div>
@@ -271,8 +303,6 @@ export function LandingPage({
             <p className="text-lg md:text-xl text-blue-100 mb-8">
               Săn hàng độc - Giá cực sốc - Uy tín hàng đầu
             </p>
-
-            {/* --- [4] GẮN SỰ KIỆN VÀO THANH TÌM KIẾM HERO --- */}
             <div className="max-w-2xl mx-auto flex gap-2">
               <div className="relative flex-1">
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-gray-400" />
@@ -291,7 +321,6 @@ export function LandingPage({
                 Tìm kiếm
               </Button>
             </div>
-            {/* ---------------------------------------------- */}
           </div>
         </section>
       )}
@@ -331,6 +360,7 @@ export function LandingPage({
                     categoryId={auction.category_id}
                     onCategoryClick={(id) => onNavigate("categories", id)}
                     onViewDetails={(id) => onNavigate("auction", id)}
+                    onAddToWatchlist={(e) => handleAddToWatchlist(e, auction.id)}
                   />
                 ))}
               </div>
@@ -369,6 +399,7 @@ export function LandingPage({
                     categoryId={auction.category_id}
                     onCategoryClick={(id) => onNavigate("categories", id)}
                     onViewDetails={(id) => onNavigate("auction", id)}
+                    onAddToWatchlist={(e) => handleAddToWatchlist(e, auction.id)}
                   />
                 ))}
               </div>
@@ -407,6 +438,7 @@ export function LandingPage({
                     categoryId={product.category_id}
                     onCategoryClick={(id) => onNavigate("categories", id)}
                     onViewDetails={(id) => onNavigate("product", id)}
+                    onAddToWatchlist={(e) => handleAddToWatchlist(e, product.id)}
                   />
                 ))}
               </div>
@@ -454,6 +486,7 @@ export function LandingPage({
                     categoryId={auction.category_id}
                     onCategoryClick={(id) => onNavigate("categories", id)}
                     onViewDetails={(id) => onNavigate("auction", id)}
+                    onAddToWatchlist={(e) => handleAddToWatchlist(e, auction.id)}
                   />
                 ))}
               </div>
@@ -464,6 +497,7 @@ export function LandingPage({
               />
             </section>
           )}
+
           <section>
             <h2 className="text-2xl font-bold text-gray-900 mb-12">
               Tất cả sản phẩm
@@ -497,8 +531,10 @@ export function LandingPage({
                   categoryId={product.category_id}
                   onCategoryClick={(id) => onNavigate("categories", id)}
                   onViewDetails={(id) => onNavigate("product", id)}
+                  onAddToWatchlist={(e) => handleAddToWatchlist(e, product.id)}
                 />
               ))}
+
               {currentProducts.length === 0 && (
                 <div className="col-span-full text-center py-12">
                   <p className="text-gray-500 text-lg">

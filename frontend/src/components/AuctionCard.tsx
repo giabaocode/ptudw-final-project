@@ -1,4 +1,4 @@
-import { Clock, TrendingUp } from "lucide-react";
+import { Clock, TrendingUp, Heart } from "lucide-react";
 import { Button } from "./ui/button";
 import { Badge } from "./ui/badge";
 import { ImageWithFallback } from "./figma/ImageWithFallback";
@@ -12,9 +12,10 @@ interface AuctionCardProps {
   endTime: Date;
   bidCount: number;
   onViewDetails: (id: number) => void;
+  onAddToWatchlist?: (id: number) => void;
 }
 
-export function AuctionCard({ id, name, currentBid, image, endTime, bidCount, onViewDetails }: AuctionCardProps) {
+export function AuctionCard({ id, name, currentBid, image, endTime, bidCount, onViewDetails, onAddToWatchlist }: AuctionCardProps) {
   const [timeLeft, setTimeLeft] = useState("");
 
   useEffect(() => {
@@ -55,6 +56,14 @@ export function AuctionCard({ id, name, currentBid, image, endTime, bidCount, on
           alt={name}
           className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
         />
+        <button className="absolute top-3 right-3 bg-white/90 backdrop-blur rounded-full p-2 shadow-sm hover:bg-white transition-colors"
+          onClick={(e) => {
+            e.stopPropagation();
+            onAddToWatchlist && onAddToWatchlist(id);
+          }}
+          title="Add to Watchlist">
+          <Heart className="h-4 w-4 text-gray-600" />
+        </button>
         <Badge className="absolute top-3 left-3 bg-[#FFD700] text-gray-900 hover:bg-[#FFD700]/90">
           <Clock className="h-3 w-3 mr-1" />
           {timeLeft}

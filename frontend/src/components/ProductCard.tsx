@@ -6,7 +6,7 @@ import {
   Tag,
   Sparkles,
   Clock,
-  TrendingUp, // 1. Thêm icon Clock và TrendingUp
+  TrendingUp,
 } from "lucide-react";
 import { Button } from "./ui/button";
 import { ImageWithFallback } from "./figma/ImageWithFallback";
@@ -21,19 +21,15 @@ interface ProductCardProps {
   buyNowPrice?: number;
   bidderName?: string;
   createdAt?: string;
-  // 2. Thêm 2 props mới này
   endTime?: string;
   bidCount?: number;
-
-  // --- [1] THÊM 2 PROPS MỚI ---
   categoryId?: number;
   onCategoryClick?: (id: number) => void;
-  // ----------------------------
-
   onViewDetails: (id: number) => void;
+  onAddToWatchlist?: (e: React.MouseEvent) => void;
 }
 
-const NEW_PRODUCT_THRESHOLD_MINUTES = 5;
+const NEW_PRODUCT_THRESHOLD_MINUTES = 60; // 60 phút
 
 export function ProductCard({
   id,
@@ -45,26 +41,25 @@ export function ProductCard({
   bidderName,
   createdAt,
   endTime,
-  bidCount, // Nhận props
+  bidCount,
   categoryId,
   onCategoryClick,
   onViewDetails,
+  onAddToWatchlist,
 }: ProductCardProps) {
-  // --- LOGIC TÍNH THỜI GIAN CÒN LẠI ---
+  
+  // --- 1. LOGIC TÍNH THỜI GIAN CÒN LẠI ---
   const [timeLeft, setTimeLeft] = useState<string | null>(null);
 
   useEffect(() => {
     if (!endTime) return;
 
     const calculateTime = () => {
-      // Fix lỗi ngày tháng giống như phần "Mới"
       const safeEndStr = String(endTime).replace(" ", "T");
-      // Nếu thiếu múi giờ thì thêm Z (giả sử DB lưu UTC)
       const endDate = new Date(
         safeEndStr.endsWith("Z") ? safeEndStr : safeEndStr + "Z"
       );
       const now = new Date();
-
       const diffMs = endDate.getTime() - now.getTime();
 
       if (diffMs <= 0) {
@@ -88,23 +83,24 @@ export function ProductCard({
     };
 
     calculateTime();
-    // Cập nhật mỗi phút một lần cho đỡ nặng
     const timer = setInterval(calculateTime, 60000);
     return () => clearInterval(timer);
   }, [endTime]);
   // -------------------------------------
 
-  // Logic "Mới" (Giữ nguyên từ bước trước)
+  // --- 2. LOGIC CHECK SẢN PHẨM MỚI ---
   let isNew = false;
   if (createdAt) {
     const safeDateStr = String(createdAt).replace(" ", "T");
     const productDate = new Date(safeDateStr);
     const now = new Date();
     const diffMs = now.getTime() - productDate.getTime();
-    const diffMinutes = Math.floor(diffMs / 60000) + now.getTimezoneOffset();
+    // Fix Timezone nếu cần, hoặc dùng UTC chuẩn
+    const diffMinutes = Math.floor(diffMs / 60000) + now.getTimezoneOffset(); 
     isNew = diffMinutes >= 0 && diffMinutes < NEW_PRODUCT_THRESHOLD_MINUTES;
   }
 
+  // Style đặc biệt cho SP mới
   const activeStyle = {
     border: "2px solid #FFD700",
     boxShadow: "0 0 15px rgba(255, 215, 0, 0.6)",
@@ -117,11 +113,7 @@ export function ProductCard({
     <div
       style={isNew ? activeStyle : {}}
       className={`bg-white rounded-xl transition-all duration-300 overflow-hidden group cursor-pointer 
-        ${
-          !isNew
-            ? "border border-gray-100 hover:shadow-md hover:-translate-y-1"
-            : ""
-        }
+        ${!isNew ? "border border-gray-100 hover:shadow-md hover:-translate-y-1" : ""}
       `}
     >
       <div
@@ -134,7 +126,16 @@ export function ProductCard({
           className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
         />
 
-        {/* 3. HIỂN THỊ THỜI GIAN CÒN LẠI (Góc Trái) */}
+        {/* Badge MỚI */}
+        {isNew && (
+          <div className="absolute top-0 right-0 z-20">
+            <div className="bg-gradient-to-r from-yellow-400 to-orange-500 text-white text-[10px] font-bold px-3 py-1 rounded-bl-xl shadow-sm flex items-center gap-1 animate-pulse">
+              <Sparkles className="h-3 w-3" /> MỚI
+            </div>
+          </div>
+        )}
+
+        {/* Badge THỜI GIAN CÒN LẠI */}
         {timeLeft && (
           <div className="absolute top-3 left-3 z-20">
             <div
@@ -150,43 +151,44 @@ export function ProductCard({
           </div>
         )}
 
-        {/* Nút yêu thích (Dời xuống góc dưới phải để không che giờ) */}
-        <button className="absolute bottom-3 right-3 bg-white/90 backdrop-blur rounded-full p-2 shadow-sm hover:bg-white transition-colors z-20 opacity-0 group-hover:opacity-100">
-          <Heart className="h-4 w-4 text-gray-600 hover:text-red-500 transition-colors" />
+        {/* Nút WATCHLIST (Tim) */}
+        <button 
+          className="absolute bottom-3 right-3 bg-white/90 backdrop-blur rounded-full p-2 shadow-sm hover:bg-white transition-colors z-20 opacity-0 group-hover:opacity-100 hover:text-red-500"
+          onClick={onAddToWatchlist}
+          title="Thêm vào danh sách theo dõi"
+        >
+          <Heart className="h-4 w-4" />
         </button>
       </div>
 
       <div className={`p-4 space-y-2 ${isNew ? "bg-yellow-50/40" : ""}`}>
         <div className="flex justify-between items-start">
-          {/* --- [2] SỬA PHẦN HIỂN THỊ DANH MỤC --- */}
+          {/* Danh mục (Click được) */}
           <p
             className="text-xs text-[#0A84FF] font-medium bg-blue-50 px-2 py-0.5 rounded hover:bg-[#0A84FF] hover:text-white transition-colors cursor-pointer z-20 relative"
             onClick={(e) => {
-              e.stopPropagation(); // Ngăn sự kiện click lan ra thẻ cha (vào trang chi tiết)
+              e.stopPropagation();
               if (onCategoryClick && categoryId) {
                 onCategoryClick(categoryId);
               }
             }}
-            title="Xem danh mục này"
           >
             {category}
           </p>
-          {/* -------------------------------------- */}
 
-          {/* --- [SỬA ĐOẠN NÀY] --- */}
+          {/* Ngày đăng */}
           {createdAt && (
             <span
               className="text-[10px] text-gray-500 flex items-center"
               title={`Đăng lúc: ${new Date(createdAt).toLocaleString("vi-VN")}`}
             >
               <Calendar className="h-3 w-3 mr-1" />
-              {/* Luôn hiển thị ngày tháng cụ thể thay vì chữ "Vừa đăng" */}
               {new Date(createdAt).toLocaleDateString("vi-VN")}
             </span>
           )}
-          {/* ---------------------- */}
         </div>
 
+        {/* Tên sản phẩm */}
         <h3
           className="text-gray-900 font-medium line-clamp-2 h-10 hover:text-[#0A84FF] transition-colors text-sm"
           onClick={() => onViewDetails(id)}
@@ -195,7 +197,8 @@ export function ProductCard({
           {name}
         </h3>
 
-        <div className="text-xs text-gray-500 space-y-1 bg-gray-50 p-2 rounded-lg">
+        {/* Thông tin Bidder & Mua ngay */}
+        <div className="text-xs text-gray-500 space-y-1 bg-white/60 p-2 rounded-lg border border-gray-100">
           <div className="flex justify-between items-center">
             <span className="flex items-center gap-1">
               <UserIcon className="h-3 w-3" /> Bidder:
@@ -225,13 +228,15 @@ export function ProductCard({
               ${price.toLocaleString()}
             </span>
           </div>
+          
+          {/* Nút Bid */}
           <Button
             size="sm"
             className={`${
               isNew
                 ? "bg-orange-500 hover:bg-orange-600"
                 : "bg-[#0A84FF] hover:bg-[#0A84FF]/90"
-            } h-8 px-3`}
+            } h-8 px-3 transition-colors`}
           >
             <ShoppingCart className="h-4 w-4 mr-1" /> Bid
           </Button>

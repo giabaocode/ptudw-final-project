@@ -5,6 +5,7 @@ export interface User {
   user_type: "bidder" | "seller" | "admin";
   rating_plus?: number;
   rating_minus?: number;
+  address: string;
 }
 
 export interface Category {

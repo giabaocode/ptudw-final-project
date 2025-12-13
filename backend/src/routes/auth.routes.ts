@@ -1,33 +1,43 @@
-import { Router } from "express";
-// Import thêm verifyResetOtp
-import {
-  register,
-  login,
-  getMe,
-  verifyOtp,
-  resendOtp,
-  forgotPassword,
-  resetPassword,
-  verifyResetOtp,
-} from "../controllers/auth.controller";
-import { authenticateToken } from "../utils/auth";
+import { Router } from 'express';
+import { 
+    // Các hàm cơ bản
+    register, 
+    login, 
+    getMe,
+    
+    // Các hàm xác thực (Từ nhánh pagination)
+    verifyOtp, 
+    resendOtp, 
+    forgotPassword, 
+    resetPassword, 
+    verifyResetOtp,
+
+    // Các hàm quản lý profile (Từ nhánh test-2)
+    updateProfile,
+    changePassword,
+    getMyFeedback
+} from '../controllers/auth.controller';
+import { authenticateToken } from '../utils/auth';
 
 const router = Router();
 
-// /api/auth/register
-router.post("/register", register);
+// --- AUTHENTICATION FLOW ---
+router.post('/register', register);
+router.post('/login', login);
+router.post('/verify', verifyOtp);
+router.post('/resend-otp', resendOtp);
 
-// /api/auth/login
-router.post("/login", login);
+// --- PASSWORD RESET FLOW ---
+router.post('/forgot-password', forgotPassword);
+router.post('/verify-reset-otp', verifyResetOtp);
+router.post('/reset-password', resetPassword);
 
-router.post("/verify", verifyOtp);
-// --- ROUTE MỚI ---
-router.post("/forgot-password", forgotPassword);
-router.post("/verify-reset-otp", verifyResetOtp); // <--- Route Mới
-router.post("/reset-password", resetPassword);
-// ----------------
+// --- PROTECTED ROUTES (Yêu cầu đăng nhập) ---
+router.get('/me', authenticateToken, getMe);
 
-// /api/auth/me (Yêu cầu xác thực)
-router.get("/me", authenticateToken, getMe);
-router.post("/resend-otp", resendOtp);
+// Quản lý Profile (Từ nhánh test-2)
+router.put('/profile', authenticateToken, updateProfile);
+router.put('/change-password', authenticateToken, changePassword);
+router.get('/feedback', authenticateToken, getMyFeedback);
+
 export default router;

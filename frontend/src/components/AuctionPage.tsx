@@ -13,7 +13,10 @@ import {
   ChevronRight,
   ShieldCheck,
   Flag,
-  Trophy, // Icon Cúp cho người thắng
+  Trophy,
+  AlertTriangle,
+  X,
+  Shield,
 } from "lucide-react";
 import { Button } from "./ui/button";
 import { Input } from "./ui/input";
@@ -29,14 +32,15 @@ import {
   CarouselNext,
   CarouselPrevious,
 } from "./ui/carousel";
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import axios from "axios";
-import { Auction, Product } from "../types";
+import { Auction } from "../types";
 import { toast } from "sonner";
 import { useAuth } from "../context/AuthContext";
 import { Skeleton } from "./ui/skeleton";
 import { formatDistanceToNow, format } from "date-fns";
 import { vi } from "date-fns/locale";
+import { createPortal } from "react-dom";
 
 interface AuctionPageProps {
   onNavigate: (page: string, id?: any) => void;
@@ -164,10 +168,25 @@ export function AuctionPage({ onNavigate, auctionId }: AuctionPageProps) {
 
   const { isLoggedIn, token } = useAuth();
 
+  // State và ref cho modal xác nhận ra giá (từ code cần merge)
+  const confirmBtnRef = useRef<HTMLButtonElement | null>(null);
+  const [showConfirmModal, setShowConfirmModal] = useState(false);
+  const [modalReady, setModalReady] = useState(false);
+  const [pendingBidAmount, setPendingBidAmount] = useState<number | null>(null);
+  const [isBidding, setIsBidding] = useState(false);
+
+  // Ref cho interval để clear khi component unmount hoặc khi chuyển sản phẩm
+  const pollingIntervalRef = useRef<NodeJS.Timeout | null>(null);
+  const isComponentMounted = useRef(true);
+
   const fetchAuctionData = useCallback(async () => {
-    if (!auctionId) return;
+    if (!auctionId || !isComponentMounted.current) return;
+
     try {
       const res = await axios.get(`/api/products/${auctionId}`);
+
+      if (!isComponentMounted.current) return;
+
       setAuction(res.data);
       if (res.data.images && res.data.images.length > 0) {
         setActiveImage(res.data.images[0]);
@@ -183,16 +202,24 @@ export function AuctionPage({ onNavigate, auctionId }: AuctionPageProps) {
         const historyRes = await axios.get(
           `/api/products/${auctionId}/bid-history`
         );
-        setBidHistory(historyRes.data);
+        if (isComponentMounted.current) {
+          setBidHistory(historyRes.data);
+        }
       } catch (e) {
-        setBidHistory([]);
+        if (isComponentMounted.current) {
+          setBidHistory([]);
+        }
       }
 
       try {
         const qRes = await axios.get(`/api/products/${auctionId}/questions`);
-        setQuestions(qRes.data);
+        if (isComponentMounted.current) {
+          setQuestions(qRes.data);
+        }
       } catch (e) {
-        setQuestions([]);
+        if (isComponentMounted.current) {
+          setQuestions([]);
+        }
       }
 
       if (res.data.seller_id) {
@@ -200,24 +227,136 @@ export function AuctionPage({ onNavigate, auctionId }: AuctionPageProps) {
           const rRes = await axios.get(
             `/api/sellers/${res.data.seller_id}/reviews`
           );
-          setReviews(rRes.data);
+          if (isComponentMounted.current) {
+            setReviews(rRes.data);
+          }
         } catch (e) {
-          setReviews([]);
+          if (isComponentMounted.current) {
+            setReviews([]);
+          }
         }
       }
     } catch (error) {
       console.error(error);
-      toast.error("Lỗi tải dữ liệu");
-      onNavigate("landing");
+      if (isComponentMounted.current) {
+        toast.error("Lỗi tải dữ liệu");
+        onNavigate("landing");
+      }
     } finally {
-      setLoading(false);
+      if (isComponentMounted.current) {
+        setLoading(false);
+      }
     }
   }, [auctionId, onNavigate]);
 
   useEffect(() => {
-    setLoading(true);
-    fetchAuctionData();
-  }, [fetchAuctionData]);
+    // Reset và tải dữ liệu mới khi auctionId thay đổi
+    const loadAuctionData = async () => {
+      if (!auctionId) return;
+
+      // Clear polling cũ nếu có
+      if (pollingIntervalRef.current) {
+        clearInterval(pollingIntervalRef.current);
+        pollingIntervalRef.current = null;
+      }
+
+      // Reset state
+      setAuction(null);
+      setBidHistory([]);
+      setQuestions([]);
+      setReviews([]);
+      setActiveImage("");
+      setActiveImageIndex(0);
+      setLoading(true);
+
+      // Fetch dữ liệu
+      await fetchAuctionData();
+
+      // Chỉ bắt đầu polling sau khi dữ liệu đã load xong và component vẫn mounted
+      if (isComponentMounted.current && auctionId) {
+        // Thiết lập polling với khoảng thời gian hợp lý hơn (5 giây)
+        pollingIntervalRef.current = setInterval(() => {
+          if (
+            document.visibilityState === "visible" &&
+            isComponentMounted.current
+          ) {
+            fetchAuctionData();
+          }
+        }, 5000); // 5 giây để giảm tải
+      }
+    };
+
+    loadAuctionData();
+
+    // Cleanup
+    return () => {
+      if (pollingIntervalRef.current) {
+        clearInterval(pollingIntervalRef.current);
+        pollingIntervalRef.current = null;
+      }
+    };
+  }, [auctionId, fetchAuctionData]);
+
+  // Cleanup khi component unmount
+  useEffect(() => {
+    return () => {
+      isComponentMounted.current = false;
+      if (pollingIntervalRef.current) {
+        clearInterval(pollingIntervalRef.current);
+        pollingIntervalRef.current = null;
+      }
+    };
+  }, []);
+
+  // Auto focus khi modal sẵn sàng (từ code cần merge)
+  useEffect(() => {
+    if (showConfirmModal) {
+      // small delay để portal + DOM hoàn chỉnh, tránh race với animation
+      setModalReady(false);
+      const t = window.setTimeout(() => setModalReady(true), 20);
+      return () => window.clearTimeout(t);
+    } else {
+      setModalReady(false);
+    }
+  }, [showConfirmModal]);
+
+  useEffect(() => {
+    if (modalReady && confirmBtnRef.current) {
+      confirmBtnRef.current.focus();
+    }
+  }, [modalReady]);
+
+  // Disable body scroll + touch when modal open (từ code cần merge)
+  useEffect(() => {
+    if (showConfirmModal) {
+      const prevOverflow = document.body.style.overflow;
+      const prevTouch = document.body.style.touchAction;
+      document.body.style.overflow = "hidden";
+      document.body.style.touchAction = "none";
+      return () => {
+        document.body.style.overflow = prevOverflow || "";
+        document.body.style.touchAction = prevTouch || "";
+      };
+    }
+    return () => {
+      document.body.style.overflow = "";
+      document.body.style.touchAction = "";
+    };
+  }, [showConfirmModal]);
+
+  // Close on ESC (từ code cần merge)
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        setShowConfirmModal(false);
+      }
+    };
+    if (showConfirmModal) {
+      window.addEventListener("keydown", onKey);
+      return () => window.removeEventListener("keydown", onKey);
+    }
+    return;
+  }, [showConfirmModal]);
 
   // Image Navigation
   const handleNextImage = () => {
@@ -226,6 +365,7 @@ export function AuctionPage({ onNavigate, auctionId }: AuctionPageProps) {
     setActiveImage(auction.images[nextIndex]);
     setActiveImageIndex(nextIndex);
   };
+
   const handlePrevImage = () => {
     if (!auction?.images) return;
     const prevIndex =
@@ -234,18 +374,69 @@ export function AuctionPage({ onNavigate, auctionId }: AuctionPageProps) {
     setActiveImageIndex(prevIndex);
   };
 
-  const handlePlaceBid = async () => {
-    if (!isLoggedIn) return toast.error("Vui lòng đăng nhập");
+  // Hàm xử lý đặt giá với modal xác nhận (tích hợp từ code cần merge)
+  const handlePlaceBid = async (e?: React.MouseEvent | React.FormEvent) => {
+    if (e) {
+      e.preventDefault();
+      e.stopPropagation();
+    }
+
+    if (!isLoggedIn) {
+      toast.error("Vui lòng đăng nhập để ra giá.");
+      onNavigate("login");
+      return;
+    }
+
+    const bidVal = parseFloat(bidAmount);
+    const currentPrice = Number(auction?.current_price) || 0;
+    const startPrice = Number(auction?.start_price) || 0;
+    const stepPrice = Number(auction?.step_price) || 0;
+    const bidCount = auction?.bid_count || 0;
+
+    let minValid = 0;
+    if (bidCount === 0) {
+      minValid = startPrice;
+    } else {
+      minValid = currentPrice + stepPrice;
+    }
+
+    if (isNaN(bidVal) || bidVal < minValid) {
+      toast.error(
+        `Giá đặt không hợp lệ. Phải ít nhất là $${minValid.toLocaleString()}`
+      );
+      return;
+    }
+    setPendingBidAmount(bidVal);
+    setShowConfirmModal(true);
+  };
+
+  // Hàm thực hiện đặt giá sau khi xác nhận
+  const executeBid = async () => {
+    if (!pendingBidAmount || !auction) return;
+    setIsBidding(true);
+
     try {
+      // Gọi API đặt giá
       await axios.post(
         `/api/bidder/products/${auctionId}/bid`,
-        { amount: Number(bidAmount) },
+        { amount: pendingBidAmount },
         { headers: { Authorization: `Bearer ${token}` } }
       );
+
       toast.success("Ra giá thành công!");
-      fetchAuctionData();
-    } catch (e: any) {
-      toast.error(e.response?.data?.message || "Lỗi khi ra giá");
+
+      // Fetch lại dữ liệu để cập nhật real-time
+      await fetchAuctionData();
+
+      // Đóng modal
+      setShowConfirmModal(false);
+      setPendingBidAmount(null);
+    } catch (error: any) {
+      console.error("Lỗi ra giá:", error);
+      const msg = error.response?.data?.message || "Ra giá thất bại.";
+      toast.error(msg);
+    } finally {
+      setIsBidding(false);
     }
   };
 
@@ -264,6 +455,7 @@ export function AuctionPage({ onNavigate, auctionId }: AuctionPageProps) {
       toast.success("Đã gửi câu hỏi!");
       setQuestionText("");
       setQaPage(1);
+      // Cập nhật ngay lập tức
       const qRes = await axios.get(`/api/products/${auctionId}/questions`);
       setQuestions(qRes.data);
     } catch (e) {
@@ -287,6 +479,13 @@ export function AuctionPage({ onNavigate, auctionId }: AuctionPageProps) {
       toast.error("Có lỗi xảy ra");
     } finally {
       setWatchlistLoading(false);
+    }
+  };
+
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === "Enter") {
+      e.preventDefault();
+      handlePlaceBid(e as any);
     }
   };
 
@@ -668,6 +867,7 @@ export function AuctionPage({ onNavigate, auctionId }: AuctionPageProps) {
                   className="h-11 text-base"
                   value={bidAmount}
                   onChange={(e) => setBidAmount(e.target.value)}
+                  onKeyDown={handleKeyDown}
                   disabled={isEnded}
                   placeholder="Nhập giá đấu..."
                 />
@@ -784,6 +984,112 @@ export function AuctionPage({ onNavigate, auctionId }: AuctionPageProps) {
           </div>
         )}
       </div>
+
+      {/* Modal Portal cho xác nhận ra giá (từ code cần merge) */}
+      {showConfirmModal &&
+        (typeof document !== "undefined"
+          ? createPortal(
+              <div
+                className="fixed inset-0 z-[9999] flex items-center justify-center p-4"
+                aria-modal="true"
+                role="dialog"
+                style={{
+                  position: "fixed",
+                  top: 0,
+                  left: 0,
+                  right: 0,
+                  bottom: 0,
+                }}
+              >
+                {/* Overlay */}
+                <div
+                  className="absolute inset-0 bg-black/60 backdrop-blur-sm transition-opacity"
+                  onClick={() => setShowConfirmModal(false)}
+                  style={{ zIndex: 0 }}
+                />
+
+                {/* Modal box */}
+                <div
+                  onClick={(e) => e.stopPropagation()}
+                  className={`relative bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden transition-all duration-200 ${
+                    modalReady
+                      ? "opacity-100 scale-100 z-10"
+                      : "opacity-0 scale-95 z-10"
+                  }`}
+                  style={{ transformOrigin: "center" }}
+                >
+                  {/* Header */}
+                  <div className="bg-white px-6 py-6 border-b border-gray-100 flex items-center gap-4">
+                    <div className="w-12 h-12 bg-blue-50 rounded-full flex items-center justify-center flex-shrink-0">
+                      <AlertTriangle className="h-6 w-6 text-[#0A84FF]" />
+                    </div>
+                    <div>
+                      <h3 className="text-lg font-bold text-gray-900">
+                        Xác nhận ra giá
+                      </h3>
+                      <p className="text-sm text-gray-500">
+                        Hãy kiểm tra kỹ thông tin trước khi đặt.
+                      </p>
+                    </div>
+                    <button
+                      onClick={() => setShowConfirmModal(false)}
+                      className="absolute top-4 right-4 text-gray-400 hover:text-gray-600 transition-colors"
+                      aria-label="Close"
+                    >
+                      <X className="h-5 w-5" />
+                    </button>
+                  </div>
+
+                  {/* Content */}
+                  <div className="px-6 py-6 space-y-4">
+                    <div className="bg-gray-50 p-4 rounded-xl flex justify-between items-center border border-gray-100">
+                      <span className="text-gray-600 font-medium">
+                        Sản phẩm
+                      </span>
+                      <span className="text-gray-900 font-bold truncate max-w-[150px]">
+                        {auction?.name}
+                      </span>
+                    </div>
+
+                    <div className="bg-[#0A84FF]/5 p-4 rounded-xl flex justify-between items-center border border-[#0A84FF]/20">
+                      <span className="text-[#0A84FF] font-medium">
+                        Giá bạn đặt
+                      </span>
+                      <span className="text-2xl font-bold text-[#0A84FF]">
+                        ${pendingBidAmount?.toLocaleString()}
+                      </span>
+                    </div>
+
+                    <p className="text-xs text-center text-gray-500 mt-2">
+                      Bằng việc chọn "Xác nhận ra giá", bạn cam kết mua sản phẩm
+                      này nếu thắng đấu giá.
+                    </p>
+                  </div>
+
+                  {/* Footer */}
+                  <div className="px-6 py-4 bg-gray-50 flex gap-3 justify-end">
+                    <Button
+                      variant="outline"
+                      onClick={() => setShowConfirmModal(false)}
+                      className="font-medium border-gray-200 hover:bg-white hover:text-gray-900"
+                    >
+                      Hủy bỏ
+                    </Button>
+
+                    <button
+                      ref={confirmBtnRef}
+                      onClick={executeBid}
+                      disabled={isBidding}
+                      className="bg-[#0A84FF] hover:bg-[#0A84FF]/90 font-bold px-6 py-2 rounded-md shadow-lg shadow-blue-500/20 disabled:opacity-60"
+                    >
+                      {isBidding ? "Đang xử lý..." : "Xác nhận ra giá"}
+                    </button>
+                  </div>
+                </div>
+              </div>,
+              document.body
+            )
+          : null)}
     </div>
   );
 }
