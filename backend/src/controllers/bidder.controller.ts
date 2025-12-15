@@ -5,7 +5,7 @@ export const placeBid = async (req: Request, res: Response) => {
   try {
     const userId = (req as any).user.id;
     const productId = parseInt(req.params.id);
-    // Nhận thêm max_amount cho tính năng Auto Bid
+
     const { amount, max_amount } = req.body;
 
     const result = await bidderService.placeBid(
@@ -20,7 +20,6 @@ export const placeBid = async (req: Request, res: Response) => {
   }
 };
 
-// Hàm mới cho Watchlist (Gộp logic của cả 2 nhánh)
 export const addToWatchlist = async (req: Request, res: Response) => {
   try {
     const userId = (req as any).user.id;
@@ -28,7 +27,6 @@ export const addToWatchlist = async (req: Request, res: Response) => {
 
     const result = await bidderService.addToWatchlist(userId, productId);
 
-    // Kiểm tra nếu service trả về success: false (Logic từ nhánh test-2)
     if (result && (result as any).success === false) {
       return res.status(409).json({ message: result.message });
     }
@@ -45,9 +43,7 @@ export const getWatchlist = async (req: Request, res: Response) => {
     const userId = (req as any).user.id;
     const list = await bidderService.getMyWatchList(userId);
 
-    // --- DEBUG ---
     console.log(`User ${userId} watchlist:`, list);
-    // -------------
 
     res.json(list);
   } catch (error: any) {
@@ -66,14 +62,10 @@ export const getMyBids = async (req: Request, res: Response) => {
   }
 };
 
-// ========================================================
-// TÍNH NĂNG TỪ NHÁNH TEST-2 (Thắng cuộc & Đánh giá)
-// ========================================================
-
 export const getWonAuctions = async (req: Request, res: Response) => {
   try {
     const userId = (req as any).user.id;
-    // Lưu ý: Cần đảm bảo bidderService có hàm getWonAuctions
+
     const result = await bidderService.getWonAuctions(userId);
     res.json(result);
   } catch (error: any) {
@@ -86,7 +78,7 @@ export const rateSeller = async (req: Request, res: Response) => {
     const userId = (req as any).user.id;
     const productId = parseInt(req.params.id);
     const { score, comment } = req.body;
-    // Lưu ý: Cần đảm bảo bidderService có hàm rateSeller
+
     const result = await bidderService.rateSeller(
       userId,
       productId,
@@ -98,10 +90,6 @@ export const rateSeller = async (req: Request, res: Response) => {
     res.status(400).json({ message: error.message });
   }
 };
-
-// ========================================================
-// TÍNH NĂNG TỪ NHÁNH PAGINATION (Hỏi đáp)
-// ========================================================
 
 export const createQuestion = async (req: Request, res: Response) => {
   try {
@@ -143,5 +131,27 @@ export const confirmReceiptController = async (req: Request, res: Response) => {
     res.json(result);
   } catch (e: any) {
     res.status(400).json({ message: e.message });
+  }
+};
+
+export const buyNow = async (req: Request, res: Response) => {
+  try {
+    const userId = (req as any).user.id;
+    const productId = parseInt(req.params.id);
+    const result = await bidderService.buyNow(userId, productId);
+    res.json(result);
+  } catch (error: any) {
+    res.status(400).json({ message: error.message });
+  }
+};
+
+export const getWonAuctionsController = async (req: Request, res: Response) => {
+  try {
+    const userId = (req as any).user.id;
+
+    const products = await bidderService.getWonAuctions(userId);
+    res.json(products);
+  } catch (error: any) {
+    res.status(400).json({ message: error.message });
   }
 };

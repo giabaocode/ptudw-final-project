@@ -1,7 +1,7 @@
 import pool from "../utils/db";
+import { sendKickEmail } from "../utils/email";
 
 export const createProduct = async (sellerId: number, productData: any) => {
-  // 1. Lấy dữ liệu từ input (Bao gồm cả allow_new_bidders từ nhánh test-2)
   const {
     name,
     category_id,
@@ -19,11 +19,9 @@ export const createProduct = async (sellerId: number, productData: any) => {
   try {
     await client.query("BEGIN");
 
-    // Mặc định cho phép người mới nếu không truyền lên
     const finalAllowNewBidders =
       allow_new_bidders !== undefined ? allow_new_bidders : true;
 
-    // 2. Insert vào bảng Products (Có cột description và allow_new_bidders)
     const productRes = await client.query(
       `INSERT INTO Products 
       (name, category_id, seller_id, start_price, step_price, buy_now_price, current_price, end_at, description, allow_new_bidders)
@@ -45,7 +43,6 @@ export const createProduct = async (sellerId: number, productData: any) => {
 
     const productId = productRes.rows[0].id;
 
-    // Lưu lịch sử mô tả
     await client.query(
       `INSERT INTO Product_Description_History(product_id, description_text) VALUES ($1, $2)`,
       [productId, description]
@@ -93,7 +90,6 @@ export const getMyProducts = async (sellerId: number) => {
   return res.rows;
 };
 
-// --- [TỪ NHÁNH PAGINATION] Trả lời câu hỏi ---
 export const answerQuestion = async (
   sellerId: number,
   questionId: number,
@@ -125,7 +121,7 @@ export const appendDescription = async (
 ) => {
   const client = await pool.connect();
   try {
-    await client.query("BEGIN"); // 1. Bắt đầu
+    await client.query("BEGIN");
 
     const productRes = await client.query(
       `SELECT id, description FROM Products WHERE id = $1 AND seller_id = $2 FOR UPDATE`,
@@ -141,33 +137,27 @@ export const appendDescription = async (
     const currentDescription = productRes.rows[0].description || "";
     const timestamp = new Date().toLocaleString("vi-VN");
 
-    // Tạo nội dung nối thêm
     const appendText = `\n\n<hr />\n<p><strong>[Cập nhật lúc ${timestamp}]:</strong></p>\n${additionalDescription}`;
 
-    // 2. Update nối chuỗi vào bảng chính (ĐÚNG LOGIC)
     await client.query(`UPDATE Products SET description = $1 WHERE id = $2`, [
       currentDescription + appendText,
       productId,
     ]);
 
-    // 3. Lưu lịch sử
     await client.query(
       `INSERT INTO Product_Description_History(product_id, description_text) VALUES ($1, $2)`,
       [productId, additionalDescription]
     );
 
-    // 4. QUAN TRỌNG: PHẢI CÓ DÒNG NÀY MỚI LƯU ĐƯỢC
     await client.query("COMMIT");
   } catch (e) {
-    await client.query("ROLLBACK"); // Hủy nếu lỗi
+    await client.query("ROLLBACK");
     console.error("Lỗi khi bổ sung mô tả:", e);
     throw e;
   } finally {
     client.release();
   }
 };
-
-// backend/src/services/seller.service.ts
 
 export const rejectBidder = async (
   sellerId: number,
@@ -178,7 +168,6 @@ export const rejectBidder = async (
   try {
     await client.query("BEGIN");
 
-    // 1. Kiểm tra quyền sở hữu
     const productCheck = await client.query(
       "SELECT id FROM Products WHERE id = $1 AND seller_id = $2 FOR UPDATE",
       [productId, sellerId]
@@ -186,8 +175,6 @@ export const rejectBidder = async (
     if (productCheck.rows.length === 0)
       throw new Error("Bạn không phải người bán sản phẩm này.");
 
-    // 2. Chặn bidder (Insert vào bảng Blocked_Bidders của bạn)
-    // Lưu ý: Dùng đúng tên cột bidder_id như bạn đã tạo bảng
     await client.query(
       `INSERT INTO Blocked_Bidders (product_id, bidder_id, seller_id) 
        VALUES ($1, $2, $3) 
@@ -195,13 +182,11 @@ export const rejectBidder = async (
       [productId, bidderId, sellerId]
     );
 
-    // 3. Xóa TOÀN BỘ lượt bid của người này tại sản phẩm này
     await client.query(
       "DELETE FROM Bids WHERE product_id = $1 AND bidder_id = $2",
       [productId, bidderId]
     );
 
-    // 4. Tìm người thắng mới (Người cao nhất còn lại)
     const nextWinnerRes = await client.query(
       `SELECT bidder_id, amount 
        FROM Bids 
@@ -211,9 +196,7 @@ export const rejectBidder = async (
       [productId]
     );
 
-    // 5. Cập nhật lại bảng Products
     if (nextWinnerRes.rows.length > 0) {
-      // Trường hợp CÓ người thứ nhì lên thay
       const newWinner = nextWinnerRes.rows[0];
       await client.query(
         `UPDATE Products 
@@ -224,7 +207,6 @@ export const rejectBidder = async (
         [newWinner.amount, newWinner.bidder_id, productId]
       );
     } else {
-      // Trường hợp KHÔNG còn ai (Về giá sàn)
       await client.query(
         `UPDATE Products 
          SET current_price = start_price, 
@@ -233,6 +215,22 @@ export const rejectBidder = async (
          WHERE id = $1`,
         [productId]
       );
+    }
+
+    const kickedUserRes = await client.query(
+      "SELECT email FROM Users WHERE id = $1",
+      [bidderId]
+    );
+    const productInfo = await client.query(
+      "SELECT name FROM Products WHERE id = $1",
+      [productId]
+    );
+
+    if (kickedUserRes.rows.length > 0) {
+      sendKickEmail(
+        kickedUserRes.rows[0].email,
+        productInfo.rows[0].name
+      ).catch(console.error);
     }
 
     await client.query("COMMIT");
@@ -258,7 +256,6 @@ export const rateWinner = async (
   try {
     await client.query("BEGIN");
 
-    // Check quyền & Trạng thái sản phẩm
     const productRes = await client.query(
       `SELECT current_highest_bidder_id, end_at FROM Products WHERE id = $1 AND seller_id = $2`,
       [productId, sellerId]
@@ -275,7 +272,6 @@ export const rateWinner = async (
 
     const winnerId = product.current_highest_bidder_id;
 
-    // Tạo hoặc Lấy Transaction ID
     let transId;
     const transCheck = await client.query(
       "SELECT id FROM Transactions WHERE product_id = $1",
@@ -292,15 +288,12 @@ export const rateWinner = async (
       transId = newTrans.rows[0].id;
     }
 
-    // Insert đánh giá vào bảng Ratings
-    // (Lưu ý: rated_user_id ở đây là winnerId)
     await client.query(
       `INSERT INTO Ratings (transaction_id, rater_id, rated_user_id, score, comment)
          VALUES ($1, $2, $3, $4, $5)`,
       [transId, sellerId, winnerId, score, comment]
     );
 
-    // Cập nhật điểm uy tín cho người thắng (Bidder)
     if (score === "positive") {
       await client.query(
         "UPDATE Users SET rating_plus = rating_plus + 1 WHERE id = $1",
@@ -323,12 +316,10 @@ export const rateWinner = async (
   }
 };
 
-// --- [THÊM MỚI] 2. Hủy giao dịch (Tự động -1 điểm) ---
 export const cancelTransaction = async (
   sellerId: number,
   productId: number
 ) => {
-  // Hủy đơn thực chất là đánh giá tiêu cực với lý do cố định
   return rateWinner(
     sellerId,
     productId,
@@ -340,11 +331,12 @@ export const cancelTransaction = async (
 export const confirmShipment = async (userId: number, productId: number) => {
   const res = await pool.query(
     `UPDATE Transactions
-    SET status='shipped' updated_at=NOW()
-    WHERE product_id=$1 and seller_id=$2 AND status='paid'
+     SET status='shipped', updated_at=NOW()
+     WHERE product_id=$1 AND seller_id=$2 AND status='paid'
     `,
     [productId, userId]
   );
+
   if (res.rowCount === 0) {
     throw new Error(
       "Lỗi: Đơn hàng chưa được thanh toán hoặc bạn không phải người bán."

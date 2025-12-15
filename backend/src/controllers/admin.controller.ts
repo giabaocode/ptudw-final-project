@@ -1,8 +1,6 @@
-// src/controllers/admin.controller.ts
 import { Request, Response } from "express";
 import * as adminService from "../services/admin.service";
 
-// --- CATEGORIES ---
 export const getCategories = async (req: Request, res: Response) => {
   try {
     const categories = await adminService.getAllCategories();
@@ -32,7 +30,6 @@ export const deleteCategory = async (req: Request, res: Response) => {
   }
 };
 
-// --- PRODUCTS ---
 export const getProducts = async (req: Request, res: Response) => {
   try {
     const products = await adminService.getAllProducts();
@@ -52,7 +49,6 @@ export const deleteProduct = async (req: Request, res: Response) => {
   }
 };
 
-// --- USERS ---
 export const getUsers = async (req: Request, res: Response) => {
   try {
     const users = await adminService.getAllUsers();
@@ -72,10 +68,8 @@ export const deleteUser = async (req: Request, res: Response) => {
   }
 };
 
-// --- UPGRADE REQUESTS ---
 export const requestUpgrade = async (req: Request, res: Response) => {
   try {
-    // Lấy ID người dùng từ token (tương tự seller.controller)
     const userId = (req as any).user.id;
     const result = await adminService.requestUpgrade(userId);
     res.json({ success: true, ...result });

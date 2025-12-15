@@ -1,5 +1,5 @@
-import { useState } from "react";
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "./ui/dialog";
+import { useState, useEffect } from "react";
+import { createPortal } from "react-dom";
 import { Button } from "./ui/button";
 import { Input } from "./ui/input";
 import { Label } from "./ui/label";
@@ -10,6 +10,7 @@ import {
   Star,
   AlertTriangle,
   ExternalLink,
+  X,
 } from "lucide-react";
 import { toast } from "sonner";
 import axios from "axios";
@@ -47,7 +48,17 @@ export function TransactionModal({
   const status: TransactionStatus =
     product.transaction_status || "pending_payment";
 
-  // --- ACTIONS ---
+  // --- 1. XỬ LÝ KHÓA SCROLL THỦ CÔNG (Giống AppendModal) ---
+  useEffect(() => {
+    if (isOpen) {
+      document.body.style.overflow = "hidden";
+    }
+    return () => {
+      document.body.style.overflow = "unset";
+    };
+  }, [isOpen]);
+
+  // --- 2. API ACTIONS ---
   const handlePay = async () => {
     if (!address || !proof)
       return toast.error("Vui lòng nhập địa chỉ và link ảnh");
@@ -104,7 +115,7 @@ export function TransactionModal({
     }
   };
 
-  // --- RENDER ---
+  // --- 3. HELPER RENDER UI ---
   const renderStatusStep = (stepStatus: string, label: string, icon: any) => {
     const steps = [
       "pending_payment",
@@ -132,17 +143,17 @@ export function TransactionModal({
   const renderContent = () => {
     if (status === "cancelled")
       return (
-        <div className="text-red-500 font-bold text-center py-4">
+        <div className="text-red-500 font-bold text-center py-8 bg-red-50 rounded-lg mx-5">
+          <AlertTriangle className="w-8 h-8 mx-auto mb-2" />
           Đơn hàng đã bị hủy.
         </div>
       );
 
-    // 1. Chờ thanh toán
     if (status === "pending_payment") {
       if (userRole === "bidder") {
         return (
-          <div className="space-y-4 pt-4">
-            <div className="bg-yellow-50 p-3 rounded text-sm text-yellow-800">
+          <div className="space-y-4 px-5 pb-5">
+            <div className="bg-yellow-50 p-3 rounded text-sm text-yellow-800 border border-yellow-200">
               Hãy chuyển khoản và nhập thông tin để nhận hàng.
             </div>
             <div className="space-y-2">
@@ -164,7 +175,7 @@ export function TransactionModal({
             <Button
               onClick={handlePay}
               disabled={loading}
-              className="w-full bg-blue-600 hover:bg-blue-700"
+              className="w-full bg-blue-600 hover:bg-blue-700 text-black"
             >
               {loading ? "Đang gửi..." : "Xác nhận đã thanh toán"}
             </Button>
@@ -172,21 +183,20 @@ export function TransactionModal({
         );
       }
       return (
-        <div className="py-6 text-center text-gray-500">
+        <div className="py-8 text-center text-gray-500 px-5">
           Đang chờ người mua thanh toán...
         </div>
       );
     }
 
-    // 2. Chờ vận chuyển
     if (status === "paid") {
       if (userRole === "seller") {
         return (
-          <div className="space-y-4 pt-4">
-            <div className="bg-green-50 p-3 rounded text-sm text-green-800">
+          <div className="space-y-4 px-5 pb-5">
+            <div className="bg-green-50 p-3 rounded text-sm text-green-800 border border-green-200">
               Người mua đã thanh toán. Hãy kiểm tra và gửi hàng.
             </div>
-            <div className="bg-gray-100 p-3 rounded text-sm space-y-1">
+            <div className="bg-gray-100 p-3 rounded text-sm space-y-2">
               <p>
                 <strong>Địa chỉ:</strong> {product.shipping_address}
               </p>
@@ -204,7 +214,7 @@ export function TransactionModal({
             <Button
               onClick={handleShip}
               disabled={loading}
-              className="w-full bg-blue-600 hover:bg-blue-700"
+              className="w-full bg-blue-600 hover:bg-blue-700 text-black"
             >
               <Truck className="w-4 h-4 mr-2" /> Xác nhận đã gửi hàng
             </Button>
@@ -212,24 +222,23 @@ export function TransactionModal({
         );
       }
       return (
-        <div className="py-6 text-center text-gray-500">
+        <div className="py-8 text-center text-gray-500 px-5">
           Đang chờ người bán xác nhận tiền và gửi hàng...
         </div>
       );
     }
 
-    // 3. Đang giao
     if (status === "shipped") {
       if (userRole === "bidder") {
         return (
-          <div className="space-y-4 pt-4">
-            <div className="bg-blue-50 p-3 rounded text-sm text-blue-800">
+          <div className="space-y-4 px-5 pb-5">
+            <div className="bg-blue-50 p-3 rounded text-sm text-blue-800 border border-blue-200">
               Người bán đã gửi hàng. Vui lòng xác nhận khi nhận được.
             </div>
             <Button
               onClick={handleReceive}
               disabled={loading}
-              className="w-full bg-green-600 hover:bg-green-700"
+              className="w-full bg-green-600 hover:bg-green-700 text-black"
             >
               <Check className="w-4 h-4 mr-2" /> Tôi đã nhận được hàng
             </Button>
@@ -237,31 +246,49 @@ export function TransactionModal({
         );
       }
       return (
-        <div className="py-6 text-center text-gray-500">
+        <div className="py-8 text-center text-gray-500 px-5">
           Đang đợi người mua nhận hàng...
         </div>
       );
     }
 
-    // 4. Hoàn tất
     if (status === "received" || status === "completed") {
       return (
-        <div className="py-6 text-center text-green-600 font-bold">
+        <div className="py-8 text-center text-green-600 font-bold px-5 bg-green-50 mx-5 rounded-lg">
           Giao dịch thành công! Hãy đánh giá đối phương.
         </div>
       );
     }
   };
 
-  return (
-    <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="sm:max-w-md bg-white">
-        <DialogHeader>
-          <DialogTitle>Trạng thái đơn hàng</DialogTitle>
-        </DialogHeader>
+  // --- 4. RENDER VỚI CREATE PORTAL (Giống hệt AppendModal) ---
+  if (!isOpen) return null;
 
-        {/* Timeline */}
-        <div className="flex justify-between items-center px-4 py-2 border-b">
+  return createPortal(
+    <div
+      className="fixed inset-0 z-[99999] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4"
+      style={{ position: "fixed", top: 0, left: 0, bottom: 0, right: 0 }}
+    >
+      {/* Click ra ngoài để đóng */}
+      <div className="fixed inset-0" onClick={onClose}></div>
+
+      {/* MODAL WRAPPER - Giống hệt class của AppendModal */}
+      <div className="relative z-10 bg-white w-full max-w-md rounded-xl shadow-2xl border border-gray-1200 overflow-hidden flex flex-col animate-in zoom-in-95 duration-200">
+        {/* HEADER */}
+        <div className="flex items-center justify-between px-5 py-4 bg-gray-50 border-b border-gray-100">
+          <h3 className="text-gray-800 font-bold text-lg">
+            Trạng thái đơn hàng
+          </h3>
+          <button
+            onClick={onClose}
+            className="p-1 rounded text-gray-400 hover:text-red-500 hover:bg-red-50 transition-all"
+          >
+            <X className="w-5 h-5" />
+          </button>
+        </div>
+
+        {/* TIMELINE */}
+        <div className="flex justify-between items-center px-5 py-4 border-b border-gray-100 bg-white">
           {renderStatusStep(
             "pending_payment",
             "Thanh toán",
@@ -287,13 +314,17 @@ export function TransactionModal({
           )}
         </div>
 
-        {renderContent()}
+        {/* BODY CONTENT */}
+        <div className="pt-5 bg-white">{renderContent()}</div>
+
+        {/* CHAT BOX */}
         {status !== "cancelled" && (
-          <div className="mt-4 pt-4 border-t border-gray-100">
+          <div className="bg-white px-5 pb-5">
             <ChatBox productId={product.id} />
           </div>
         )}
-      </DialogContent>
-    </Dialog>
+      </div>
+    </div>,
+    document.body
   );
 }

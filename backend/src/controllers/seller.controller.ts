@@ -4,13 +4,40 @@ import * as sellerService from "../services/seller.service";
 export const createProduct = async (req: Request, res: Response) => {
   try {
     const sellerId = (req as any).user.id;
-    const result = await sellerService.createProduct(sellerId, req.body);
+
+    const files = req.files as Express.Multer.File[];
+
+    if (!files || files.length < 3) {
+      return res.status(400).json({
+        success: false,
+        message: "Vui lòng tải lên tối thiểu 3 ảnh minh họa cho sản phẩm.",
+      });
+    }
+
+    const imageUrls = files.map((file) => file.path);
+
+    const productData = {
+      ...req.body,
+      images: imageUrls,
+      start_price: Number(req.body.start_price),
+      step_price: Number(req.body.step_price),
+      buy_now_price: req.body.buy_now_price
+        ? Number(req.body.buy_now_price)
+        : null,
+      category_id: Number(req.body.category_id),
+
+      allow_new_bidders:
+        req.body.allow_new_bidders === "true" ||
+        req.body.allow_new_bidders === "on",
+    };
+
+    const result = await sellerService.createProduct(sellerId, productData);
     res.status(201).json({ success: true, ...result });
   } catch (error: any) {
+    console.error("Lỗi tạo sản phẩm:", error);
     res.status(500).json({ success: false, message: error.message });
   }
 };
-
 export const getMyProducts = async (req: Request, res: Response) => {
   try {
     const sellerId = (req as any).user.id;
@@ -21,7 +48,6 @@ export const getMyProducts = async (req: Request, res: Response) => {
   }
 };
 
-// --- [THÊM MỚI] ---
 export const replyQuestion = async (req: Request, res: Response) => {
   try {
     const sellerId = (req as any).user.id;
@@ -36,7 +62,7 @@ export const replyQuestion = async (req: Request, res: Response) => {
     res.status(400).json({ message: error.message });
   }
 };
-// ------------------
+
 export const addDescription = async (req: Request, res: Response) => {
   try {
     const sellerId = (req as any).user.id;
