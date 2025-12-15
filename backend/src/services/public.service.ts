@@ -1,6 +1,5 @@
 import pool from "../utils/db";
 
-// Helper: Xử lý mapping ảnh từ kết quả SQL vào object trả về
 const mapProductImage = (row: any) => {
   row.images = row.thumbnail ? [row.thumbnail] : [];
   delete row.thumbnail;
@@ -8,7 +7,6 @@ const mapProductImage = (row: any) => {
   return row;
 };
 
-// 1. Task: API Lấy Danh mục
 export const fetchCategories = async () => {
   const parentsResult = await pool.query(
     "SELECT * FROM Categories WHERE parent_id IS NULL"
@@ -25,7 +23,6 @@ export const fetchCategories = async () => {
   return parents;
 };
 
-// 2. Task: API Lấy Sản phẩm (có lọc Category)
 export const fetchProducts = async (
   page: number,
   limit: number,
@@ -78,7 +75,6 @@ export const fetchProducts = async (
   };
 };
 
-// 3. Task: API Lấy chi tiết sản phẩm (Đã có Rating + Related)
 export const fetchProductById = async (id: number) => {
   const productRes = await pool.query(
     `
@@ -147,7 +143,6 @@ export const fetchProductById = async (id: number) => {
   };
 };
 
-// 4. Task: API Lấy Top sản phẩm cho Trang chủ
 export const fetchHomepageTops = async () => {
   const baseSelect = `
     SELECT p.*, c.name as category_name, b.full_name as bidder_name,
@@ -176,7 +171,6 @@ export const fetchHomepageTops = async () => {
   };
 };
 
-// 5. Task: Tìm kiếm sản phẩm
 export const searchProducts = async (
   keyword: string,
   page: number,
@@ -225,7 +219,6 @@ export const searchProducts = async (
   };
 };
 
-// 6. Task: Lấy thông tin Seller
 export const getSellerInfo = async (sellerId: number) => {
   const userRes = await pool.query(
     `SELECT id, full_name, email, rating_plus, rating_minus, created_at 
@@ -256,7 +249,6 @@ export const getSellerInfo = async (sellerId: number) => {
   return { seller: userRes.rows[0], products: productsRes.rows };
 };
 
-// 7. Task: Lấy lịch sử đấu giá
 export const getBidHistory = async (productId: number) => {
   const res = await pool.query(
     `
@@ -284,9 +276,6 @@ export const getBidHistory = async (productId: number) => {
   });
 };
 
-// --- [ĐÂY LÀ PHẦN BẠN ĐANG THIẾU] ---
-
-// 8. Task: Lấy câu hỏi Q&A
 export const getProductQuestions = async (productId: number) => {
   const res = await pool.query(
     `SELECT q.*, 
@@ -296,13 +285,12 @@ export const getProductQuestions = async (productId: number) => {
      JOIN Users u ON q.asker_id = u.id
      LEFT JOIN Users r ON q.responder_id = r.id
      WHERE q.product_id = $1
-     ORDER BY q.asked_at DESC`, // Chú ý: trong DB là asked_at, không phải created_at
+     ORDER BY q.asked_at DESC`,
     [productId]
   );
   return res.rows;
 };
 
-// 9. Task: Lấy đánh giá Seller
 export const getSellerReviews = async (sellerId: number) => {
   const res = await pool.query(
     `SELECT r.score, r.comment, r.created_at, u.full_name as rater_name

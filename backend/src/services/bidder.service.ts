@@ -1,5 +1,9 @@
 import pool from "../utils/db";
-import { sendQuestionNotificationEmail } from "../utils/email";
+import {
+  sendQuestionNotificationEmail,
+  sendOutbidEmail,
+  sendSellerNewBidEmail,
+} from "../utils/email";
 // 1. RA GIÁ (BID)
 export const placeBid = async (
   bidderId: number,
@@ -178,6 +182,36 @@ export const placeBid = async (
       [newCurrentPrice, bidderId, newEndAt, productId]
     );
 
+    if (currentWinnerId && currentWinnerId !== bidderId) {
+      // Lấy email người cũ
+      const oldUserRes = await client.query(
+        "SELECT email FROM Users WHERE id = $1",
+        [currentWinnerId]
+      );
+      if (oldUserRes.rows.length > 0) {
+        const oldEmail = oldUserRes.rows[0].email;
+        // Không await để tránh làm chậm phản hồi cho người đang bid
+        sendOutbidEmail(oldEmail, product.name, newCurrentPrice).catch(
+          console.error
+        );
+      }
+    }
+
+    const sellerRes = await client.query(
+      "SELECT email FROM Users WHERE id = $1",
+      [product.seller_id]
+    );
+
+    if (sellerRes.rows.length > 0) {
+      const sellerEmail = sellerRes.rows[0].email;
+
+      // Import hàm này từ email.ts nhé
+      // Gửi mail báo: "Sản phẩm của bạn có giá mới"
+      sendSellerNewBidEmail(sellerEmail, product.name, newCurrentPrice).catch(
+        console.error
+      );
+    }
+
     await client.query("COMMIT");
     return {
       message: "Ra giá thành công! Bạn đang dẫn đầu.",
@@ -243,10 +277,12 @@ export const getMyBid = async (userId: number) => {
            MAX(b.created_at) as last_bid_time,
 
            -- 4. Lấy tên người bán (Từ nhánh test-2)
-           u.full_name as seller_name
+           u.full_name as seller_name,
+           t.status as transaction_status
     FROM Bids b
     JOIN Products p ON b.product_id = p.id
     JOIN Users u ON p.seller_id = u.id  -- Join thêm bảng Users để lấy tên Seller
+    LEFT JOIN Transactions t ON p.id = t.product_id
     WHERE b.bidder_id = $1
     GROUP BY p.id, u.full_name          -- Group by cả tên seller để không lỗi SQL
     ORDER BY last_bid_time DESC
@@ -418,8 +454,9 @@ export const submitPayment = async (
 ) => {
   const client = await pool.connect();
   try {
+    // 1. Sửa lỗi chính tả: Prducts -> Products
     const product = await client.query(
-      `SELECT current_highest_bidder_id, current_price, seller_id FROM Prducts WHERE id = $1`,
+      `SELECT current_highest_bidder_id, current_price, seller_id FROM Products WHERE id = $1`,
       [productId]
     );
 
@@ -429,6 +466,7 @@ export const submitPayment = async (
     if (product.rows[0].current_highest_bidder_id !== userId) {
       throw new Error("Bạn không phải người thắng cuộc");
     }
+
     await client.query(
       `
       INSERT INTO Transactions (product_id, buyer_id, seller_id, final_price, status, shipping_address, payment_proof, created_at)
@@ -451,20 +489,25 @@ export const submitPayment = async (
     );
 
     return { message: "Đã gửi thông tin thanh toán. Chờ người bán xác nhận." };
-  } catch {
+  } catch (error) {
+    // 2. QUAN TRỌNG: Phải throw error để controller biết mà báo lỗi 500
+    console.error("Lỗi submitPayment:", error);
+    throw error;
   } finally {
     client.release();
   }
 };
 
 export const confirmReceipt = async (userId: number, productId: number) => {
+  // 3. Sửa lỗi SQL: Thêm dấu phẩy (,) trước updated_at
   const res = await pool.query(
     `UPDATE Transactions
-    SET status='received' updated_at=NOW()
-    WHERE product_id=$1 AND buyer_id=$2 AND status='shipped'
+     SET status='received', updated_at=NOW() 
+     WHERE product_id=$1 AND buyer_id=$2 AND status='shipped'
     `,
     [productId, userId]
   );
+
   if (res.rowCount === 0) {
     throw new Error(
       "Không thể xác nhận (Đơn hàng chưa được gửi hoặc bạn không có quyền)"
@@ -474,4 +517,66 @@ export const confirmReceipt = async (userId: number, productId: number) => {
   return {
     message: "Đã nhận hàng thành công. Hãy đánh giá người bán để hoàn tất.",
   };
+};
+// ... imports
+
+// [CHỨC NĂNG MỚI] MUA NGAY
+export const buyNow = async (userId: number, productId: number) => {
+  const client = await pool.connect();
+  try {
+    await client.query("BEGIN");
+
+    const productRes = await client.query(
+      `SELECT * FROM Products WHERE id = $1 FOR UPDATE`,
+      [productId]
+    );
+
+    if (productRes.rows.length === 0) throw new Error("Sản phẩm không tồn tại");
+    const product = productRes.rows[0];
+
+    if (!product.buy_now_price)
+      throw new Error("Sản phẩm này không hỗ trợ Mua ngay.");
+    if (new Date(product.end_at) < new Date())
+      throw new Error("Đấu giá đã kết thúc.");
+    if (product.seller_id === userId)
+      throw new Error("Bạn không thể tự mua hàng của mình.");
+
+    const buyPrice = Number(product.buy_now_price);
+
+    // 1. Cập nhật sản phẩm
+    await client.query(
+      `UPDATE Products 
+       SET current_price = $1, 
+           current_highest_bidder_id = $2, 
+           end_at = NOW(),
+           bid_count = bid_count + 1 
+       WHERE id = $3`,
+      [buyPrice, userId, productId]
+    );
+
+    // 2. [QUAN TRỌNG] Ghi vào lịch sử đấu giá (để API /my-bids tìm thấy)
+    await client.query(
+      `INSERT INTO Bids (product_id, bidder_id, amount, max_amount, created_at)
+       VALUES ($1, $2, $3, $4, NOW())`,
+      [productId, userId, buyPrice, buyPrice]
+    );
+
+    // 3. Tạo Transaction
+    await client.query(
+      `
+      INSERT INTO Transactions (product_id, buyer_id, seller_id, final_price, status, created_at)
+      VALUES ($1, $2, $3, $4, 'pending_payment', NOW())
+      ON CONFLICT (product_id) DO NOTHING
+    `,
+      [productId, userId, product.seller_id, buyPrice]
+    );
+
+    await client.query("COMMIT");
+    return { message: "Chúc mừng! Bạn đã mua thành công sản phẩm." };
+  } catch (e: any) {
+    await client.query("ROLLBACK");
+    throw e;
+  } finally {
+    client.release();
+  }
 };

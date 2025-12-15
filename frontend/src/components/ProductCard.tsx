@@ -6,7 +6,7 @@ import {
   Tag,
   Sparkles,
   Clock,
-  TrendingUp,
+  Zap, // Icon tia sét cho Mua ngay
 } from "lucide-react";
 import { Button } from "./ui/button";
 import { ImageWithFallback } from "./figma/ImageWithFallback";
@@ -27,6 +27,7 @@ interface ProductCardProps {
   onCategoryClick?: (id: number) => void;
   onViewDetails: (id: number) => void;
   onAddToWatchlist?: (e: React.MouseEvent) => void;
+  onBuyNow?: (id: number) => void; // <--- Thêm prop này
 }
 
 const NEW_PRODUCT_THRESHOLD_MINUTES = 60; // 60 phút
@@ -41,13 +42,12 @@ export function ProductCard({
   bidderName,
   createdAt,
   endTime,
-  bidCount,
   categoryId,
   onCategoryClick,
   onViewDetails,
   onAddToWatchlist,
+  onBuyNow, // <--- Nhận prop
 }: ProductCardProps) {
-  
   // --- 1. LOGIC TÍNH THỜI GIAN CÒN LẠI ---
   const [timeLeft, setTimeLeft] = useState<string | null>(null);
 
@@ -86,7 +86,6 @@ export function ProductCard({
     const timer = setInterval(calculateTime, 60000);
     return () => clearInterval(timer);
   }, [endTime]);
-  // -------------------------------------
 
   // --- 2. LOGIC CHECK SẢN PHẨM MỚI ---
   let isNew = false;
@@ -95,47 +94,45 @@ export function ProductCard({
     const productDate = new Date(safeDateStr);
     const now = new Date();
     const diffMs = now.getTime() - productDate.getTime();
-    // Fix Timezone nếu cần, hoặc dùng UTC chuẩn
-    const diffMinutes = Math.floor(diffMs / 60000) + now.getTimezoneOffset(); 
+    const diffMinutes = Math.floor(diffMs / 60000);
     isNew = diffMinutes >= 0 && diffMinutes < NEW_PRODUCT_THRESHOLD_MINUTES;
   }
 
-  // Style đặc biệt cho SP mới
-  const activeStyle = {
+  const activeStyle: React.CSSProperties = {
     border: "2px solid #FFD700",
-    boxShadow: "0 0 15px rgba(255, 215, 0, 0.6)",
-    transform: "scale(1.02)",
-    zIndex: 10,
-    position: "relative" as "relative",
+    boxShadow: "0 0 15px rgba(255, 215, 0, 0.4)",
+    zIndex: 1,
+    position: "relative",
   };
 
   return (
     <div
       style={isNew ? activeStyle : {}}
-      className={`bg-white rounded-xl transition-all duration-300 overflow-hidden group cursor-pointer 
-        ${!isNew ? "border border-gray-100 hover:shadow-md hover:-translate-y-1" : ""}
+      className={`bg-white rounded-xl transition-all duration-300 overflow-hidden group cursor-pointer flex flex-col h-full
+        ${
+          !isNew
+            ? "border border-gray-100 hover:shadow-md hover:-translate-y-1"
+            : ""
+        }
       `}
+      onClick={() => onViewDetails(id)}
     >
-      <div
-        className="relative h-48 overflow-hidden bg-gray-100"
-        onClick={() => onViewDetails(id)}
-      >
+      {/* ẢNH SẢN PHẨM */}
+      <div className="relative h-48 overflow-hidden bg-gray-100 flex-shrink-0">
         <ImageWithFallback
           src={image}
           alt={name}
           className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
         />
 
-        {/* Badge MỚI */}
         {isNew && (
           <div className="absolute top-0 right-0 z-20">
-            <div className="bg-gradient-to-r from-yellow-400 to-orange-500 text-white text-[10px] font-bold px-3 py-1 rounded-bl-xl shadow-sm flex items-center gap-1 animate-pulse">
+            <div className="bg-gradient-to-r from-yellow-400 to-orange-500 text-white text-[10px] font-bold px-3 py-1 rounded-bl-xl shadow-sm flex items-center gap-1">
               <Sparkles className="h-3 w-3" /> MỚI
             </div>
           </div>
         )}
 
-        {/* Badge THỜI GIAN CÒN LẠI */}
         {timeLeft && (
           <div className="absolute top-3 left-3 z-20">
             <div
@@ -151,19 +148,25 @@ export function ProductCard({
           </div>
         )}
 
-        {/* Nút WATCHLIST (Tim) */}
-        <button 
+        <button
           className="absolute bottom-3 right-3 bg-white/90 backdrop-blur rounded-full p-2 shadow-sm hover:bg-white transition-colors z-20 opacity-0 group-hover:opacity-100 hover:text-red-500"
-          onClick={onAddToWatchlist}
+          onClick={(e) => {
+            e.stopPropagation();
+            if (onAddToWatchlist) onAddToWatchlist(e);
+          }}
           title="Thêm vào danh sách theo dõi"
         >
           <Heart className="h-4 w-4" />
         </button>
       </div>
 
-      <div className={`p-4 space-y-2 ${isNew ? "bg-yellow-50/40" : ""}`}>
+      {/* THÔNG TIN SẢN PHẨM */}
+      <div
+        className={`p-4 space-y-2 flex flex-col flex-1 ${
+          isNew ? "bg-yellow-50/30" : ""
+        }`}
+      >
         <div className="flex justify-between items-start">
-          {/* Danh mục (Click được) */}
           <p
             className="text-xs text-[#0A84FF] font-medium bg-blue-50 px-2 py-0.5 rounded hover:bg-[#0A84FF] hover:text-white transition-colors cursor-pointer z-20 relative"
             onClick={(e) => {
@@ -176,7 +179,6 @@ export function ProductCard({
             {category}
           </p>
 
-          {/* Ngày đăng */}
           {createdAt && (
             <span
               className="text-[10px] text-gray-500 flex items-center"
@@ -188,17 +190,14 @@ export function ProductCard({
           )}
         </div>
 
-        {/* Tên sản phẩm */}
         <h3
           className="text-gray-900 font-medium line-clamp-2 h-10 hover:text-[#0A84FF] transition-colors text-sm"
-          onClick={() => onViewDetails(id)}
           title={name}
         >
           {name}
         </h3>
 
-        {/* Thông tin Bidder & Mua ngay */}
-        <div className="text-xs text-gray-500 space-y-1 bg-white/60 p-2 rounded-lg border border-gray-100">
+        <div className="text-xs text-gray-500 space-y-1 bg-white/60 p-2 rounded-lg border border-gray-100 mt-auto">
           <div className="flex justify-between items-center">
             <span className="flex items-center gap-1">
               <UserIcon className="h-3 w-3" /> Bidder:
@@ -217,7 +216,8 @@ export function ProductCard({
           )}
         </div>
 
-        <div className="flex items-center justify-between pt-2 border-t border-gray-100">
+        {/* --- FOOTER: GIÁ VÀ NÚT BẤM --- */}
+        <div className="flex items-center justify-between pt-3 border-t border-gray-100 mt-2">
           <div>
             <p className="text-xs text-gray-400">Giá hiện tại</p>
             <span
@@ -228,18 +228,40 @@ export function ProductCard({
               ${price.toLocaleString()}
             </span>
           </div>
-          
-          {/* Nút Bid */}
-          <Button
-            size="sm"
-            className={`${
-              isNew
-                ? "bg-orange-500 hover:bg-orange-600"
-                : "bg-[#0A84FF] hover:bg-[#0A84FF]/90"
-            } h-8 px-3 transition-colors`}
-          >
-            <ShoppingCart className="h-4 w-4 mr-1" /> Bid
-          </Button>
+
+          <div className="flex gap-2">
+            {/* 1. NÚT MUA NGAY (Chỉ hiện nếu có buyNowPrice) */}
+            {buyNowPrice && (
+              <Button
+                size="sm"
+                onClick={(e: any) => {
+                  e.stopPropagation();
+                  // Nếu có hàm onBuyNow thì gọi, không thì mặc định vào trang chi tiết
+                  if (onBuyNow) onBuyNow(id);
+                  else onViewDetails(id);
+                }}
+                className="h-8 px-2 bg-red-100 text-red-600 hover:bg-red-200 border-0 font-medium"
+                title={`Mua ngay với giá $${buyNowPrice.toLocaleString()}`}
+              >
+                <Zap className="h-4 w-4" />
+              </Button>
+            )}
+
+            {/* 2. NÚT BID */}
+            <Button
+              size="sm"
+              onClick={(e: any) => {
+                e.stopPropagation();
+                onViewDetails(id);
+              }}
+              className="h-8 px-3 transition-colors text-white font-medium"
+              style={{
+                backgroundColor: isNew ? "#F97316" : "#0A84FF",
+              }}
+            >
+              <ShoppingCart className="h-4 w-4 mr-1" /> Bid
+            </Button>
+          </div>
         </div>
       </div>
     </div>

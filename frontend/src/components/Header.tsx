@@ -1,27 +1,35 @@
-import { ShoppingCart, User, Menu, X, LogOut, ChevronDown } from "lucide-react";
+import {
+  ShoppingCart,
+  User,
+  Menu,
+  X,
+  LogOut,
+  ChevronDown,
+  Search,
+} from "lucide-react";
 import { Button } from "./ui/button";
 import { useState, useEffect } from "react";
 import { useAuth } from "../context/AuthContext";
 import axios from "axios";
 import { Category } from "../types";
+import { Link, useNavigate } from "react-router-dom"; // Import Link & useNavigate
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "./ui/dropdown-menu";
-import { Search } from "lucide-react";
 
 interface HeaderProps {
   currentPage: string;
   onNavigate: (page: string, id?: number) => void;
   cartItemsCount: number;
-  onSearch?: (query: string) => void; // Prop mới optional
+  onSearch?: (query: string) => void;
 }
 
 export function Header({
   currentPage,
-  onNavigate,
+  onNavigate, // Vẫn giữ props này để tương thích ngược nếu cần, nhưng ưu tiên dùng Link/navigate
   cartItemsCount,
   onSearch,
 }: HeaderProps) {
@@ -29,15 +37,28 @@ export function Header({
   const { isLoggedIn, logout, user } = useAuth();
   const [categories, setCategories] = useState<Category[]>([]);
   const [keyword, setKeyword] = useState("");
+  const navigate = useNavigate(); // Hook điều hướng
 
   const handleSearchSubmit = () => {
-    if (onSearch && keyword.trim()) {
-      onSearch(keyword);
+    if (keyword.trim()) {
+      if (onSearch) {
+        onSearch(keyword);
+      } else {
+        // Fallback: Tự điều hướng nếu không có prop onSearch
+        navigate(`/?search=${keyword}`);
+      }
+      setMobileMenuOpen(false);
     }
   };
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === "Enter") handleSearchSubmit();
+  };
+
+  const handleLogout = () => {
+    logout();
+    navigate("/");
+    setMobileMenuOpen(false);
   };
 
   useEffect(() => {
@@ -57,21 +78,20 @@ export function Header({
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex items-center justify-between h-16">
           {/* Logo */}
-          <div
-            className="flex items-center gap-2 cursor-pointer"
-            onClick={() => onNavigate("landing")}
-          >
+          <Link to="/" className="flex items-center gap-2 cursor-pointer">
             <div className="w-10 h-10 bg-gradient-to-br from-[#0A84FF] to-[#FFD700] rounded-lg flex items-center justify-center">
               <span className="text-white font-bold">AB</span>
             </div>
             <span className="text-xl font-bold text-gray-900">AuctionBay</span>
-          </div>
+          </Link>
+
+          {/* Search Bar (Desktop) */}
           <div className="hidden md:flex items-center flex-1 max-w-md mx-8">
             <div className="relative w-full">
               <input
                 type="text"
                 placeholder="Tìm kiếm sản phẩm..."
-                className="w-full pl-10 pr-4 py-2 rounded-full border border-gray-200 focus:border-[#0A84FF] focus:ring-1 focus:ring-[#0A84FF] outline-none text-sm bg-gray-50"
+                className="w-full pl-10 pr-4 py-2 rounded-full border border-gray-200 focus:border-[#0A84FF] focus:ring-1 focus:ring-[#0A84FF] outline-none text-sm bg-gray-50 transition-all"
                 value={keyword}
                 onChange={(e) => setKeyword(e.target.value)}
                 onKeyDown={handleKeyDown}
@@ -85,20 +105,19 @@ export function Header({
             </div>
           </div>
 
-          {/* --- MENU DESKTOP 2 CẤP --- */}
+          {/* --- MENU DESKTOP --- */}
           <nav className="hidden md:flex items-center gap-6">
-            <button
-              onClick={() => onNavigate("landing")}
+            <Link
+              to="/"
               className={`text-sm font-medium transition-colors hover:text-[#0A84FF] ${
                 currentPage === "landing" ? "text-[#0A84FF]" : "text-gray-700"
               }`}
             >
               Trang chủ
-            </button>
+            </Link>
 
             {categories.map((parent) => (
               <div key={parent.id}>
-                {/* Nếu có con thì dùng Dropdown, không thì hiển thị nút thường */}
                 {parent.children && parent.children.length > 0 ? (
                   <DropdownMenu>
                     <DropdownMenuTrigger className="flex items-center gap-1 text-sm font-medium text-gray-700 hover:text-[#0A84FF] outline-none">
@@ -106,74 +125,69 @@ export function Header({
                     </DropdownMenuTrigger>
                     <DropdownMenuContent>
                       {parent.children.map((child) => (
-                        <DropdownMenuItem
-                          key={child.id}
-                          onClick={() => onNavigate("categories", child.id)}
-                          className="cursor-pointer"
-                        >
-                          {child.name}
+                        <DropdownMenuItem key={child.id} asChild>
+                          <Link
+                            to={`/?categoryId=${child.id}`}
+                            className="cursor-pointer w-full block"
+                          >
+                            {child.name}
+                          </Link>
                         </DropdownMenuItem>
                       ))}
                     </DropdownMenuContent>
                   </DropdownMenu>
                 ) : (
-                  <button
-                    onClick={() => onNavigate("categories", parent.id)}
+                  <Link
+                    to={`/?categoryId=${parent.id}`}
                     className="text-sm font-medium text-gray-700 hover:text-[#0A84FF]"
                   >
                     {parent.name}
-                  </button>
+                  </Link>
                 )}
               </div>
             ))}
           </nav>
 
           {/* Right Side Actions */}
-          <div className="flex items-center gap-4">
+          <div className="flex items-center gap-2 lg:gap-4">
             {isLoggedIn ? (
               <>
+                {/* Giỏ hàng */}
                 <Button
                   variant="ghost"
                   size="icon"
                   className="relative"
-                  onClick={() => onNavigate("cart")}
-                >
-                  <ShoppingCart className="h-5 w-5" />
-                  {cartItemsCount > 0 && (
-                    <span className="absolute -top-1 -right-1 bg-[#FFD700] text-gray-900 text-xs rounded-full w-5 h-5 flex items-center justify-center">
-                      {cartItemsCount}
-                    </span>
-                  )}
-                </Button>
+                  asChild
+                ></Button>
+
+                {/* Profile */}
                 <Button
                   variant="ghost"
                   size="icon"
-                  onClick={() => onNavigate("profile")}
                   title="Hồ sơ cá nhân"
+                  asChild
                 >
-                  <User className="h-5 w-5" />
+                  <Link to="/profile">
+                    <User className="h-5 w-5" />
+                  </Link>
                 </Button>
-                {/* Nút Logout cho Desktop */}
-                {/* --- THÊM NÚT CHO ADMIN --- */}
-                {/* Bạn cần đảm bảo đã lấy user từ useAuth() ở đầu component Header */}
-                {/* Nếu chưa có user, hãy sửa: const { isLoggedIn, logout, user } = useAuth(); */}
 
+                {/* Nút Admin (Chỉ hiện nếu là Admin) */}
                 {user?.user_type === "admin" && (
                   <Button
                     variant="ghost"
-                    onClick={() => onNavigate("admin-dashboard")}
-                    className="text-red-600 font-bold"
+                    asChild
+                    className="hidden sm:flex text-red-600 font-bold hover:text-red-700 hover:bg-red-50"
                   >
-                    Admin CP
+                    <Link to="/dashboard">Admin CP</Link>
                   </Button>
                 )}
+
+                {/* Logout */}
                 <Button
                   variant="ghost"
                   size="icon"
-                  onClick={() => {
-                    logout();
-                    onNavigate("landing");
-                  }}
+                  onClick={handleLogout}
                   className="text-red-500 hover:bg-red-50 hover:text-red-600"
                   title="Đăng xuất"
                 >
@@ -181,21 +195,17 @@ export function Header({
                 </Button>
               </>
             ) : (
-              <>
-                <Button
-                  variant="ghost"
-                  onClick={() => onNavigate("login")}
-                  className="hidden sm:flex"
-                >
-                  Đăng nhập
+              <div className="hidden sm:flex items-center gap-2">
+                <Button variant="ghost" asChild>
+                  <Link to="/login">Đăng nhập</Link>
                 </Button>
                 <Button
-                  onClick={() => onNavigate("signup")}
-                  className="hidden sm:flex bg-[#0A84FF] hover:bg-[#0A84FF]/90"
+                  className="bg-[#0A84FF] hover:bg-[#0A84FF]/90 shadow-md shadow-blue-500/20"
+                  asChild
                 >
-                  Đăng ký
+                  <Link to="/signup">Đăng ký</Link>
                 </Button>
-              </>
+              </div>
             )}
 
             {/* Mobile Menu Button */}
@@ -214,37 +224,46 @@ export function Header({
           </div>
         </div>
 
-        {/* --- MENU MOBILE (Hiển thị dạng danh sách phẳng cho dễ dùng) --- */}
+        {/* --- MENU MOBILE --- */}
         {mobileMenuOpen && (
-          <div className="md:hidden py-4 border-t max-h-[80vh] overflow-y-auto">
+          <div className="md:hidden py-4 border-t max-h-[80vh] overflow-y-auto animate-in slide-in-from-top-5 duration-200">
             <nav className="flex flex-col gap-2">
-              <button
-                onClick={() => {
-                  onNavigate("landing");
-                  setMobileMenuOpen(false);
-                }}
-                className="text-left px-4 py-2 font-medium text-gray-900 bg-gray-50 rounded-lg"
+              {/* Mobile Search */}
+              <div className="px-4 mb-4 relative">
+                <input
+                  type="text"
+                  placeholder="Tìm kiếm..."
+                  className="w-full pl-10 pr-4 py-2 rounded-lg border border-gray-200 bg-gray-50 focus:ring-1 focus:ring-[#0A84FF] outline-none"
+                  value={keyword}
+                  onChange={(e) => setKeyword(e.target.value)}
+                  onKeyDown={handleKeyDown}
+                />
+                <Search className="absolute left-7 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
+              </div>
+
+              <Link
+                to="/"
+                onClick={() => setMobileMenuOpen(false)}
+                className="block px-4 py-2 font-medium text-gray-900 bg-gray-50 mx-4 rounded-lg"
               >
                 Trang chủ
-              </button>
+              </Link>
 
               {categories.map((parent) => (
                 <div key={parent.id} className="px-4 py-2">
-                  <div className="font-bold text-gray-900 mb-2">
+                  <div className="font-bold text-gray-900 mb-2 flex items-center justify-between">
                     {parent.name}
                   </div>
-                  <div className="pl-4 flex flex-col gap-2 border-l-2 border-gray-100">
+                  <div className="pl-4 flex flex-col gap-2 border-l-2 border-gray-100 ml-1">
                     {parent.children?.map((child) => (
-                      <button
+                      <Link
                         key={child.id}
-                        onClick={() => {
-                          onNavigate("categories", child.id);
-                          setMobileMenuOpen(false);
-                        }}
-                        className="text-left text-sm text-gray-600 hover:text-[#0A84FF]"
+                        to={`/?categoryId=${child.id}`}
+                        onClick={() => setMobileMenuOpen(false)}
+                        className="text-sm text-gray-600 hover:text-[#0A84FF] py-1 block"
                       >
                         {child.name}
-                      </button>
+                      </Link>
                     ))}
                   </div>
                 </div>
@@ -254,46 +273,48 @@ export function Header({
               <div className="border-t pt-4 mt-2 px-4 space-y-3">
                 {isLoggedIn ? (
                   <>
-                    <button
-                      onClick={() => {
-                        onNavigate("profile");
-                        setMobileMenuOpen(false);
-                      }}
-                      className="w-full text-left py-2 font-medium"
+                    <Link
+                      to="/profile"
+                      onClick={() => setMobileMenuOpen(false)}
+                      className="block w-full py-2 font-medium text-gray-700 hover:bg-gray-50 rounded-lg px-2"
                     >
                       Hồ sơ cá nhân
-                    </button>
+                    </Link>
+
+                    {user?.user_type === "seller" && (
+                      <Link
+                        to="/dashboard"
+                        onClick={() => setMobileMenuOpen(false)}
+                        className="block w-full py-2 font-medium text-blue-600 hover:bg-blue-50 rounded-lg px-2"
+                      >
+                        Quản lý kho hàng
+                      </Link>
+                    )}
+
                     <button
-                      onClick={() => {
-                        logout();
-                        setMobileMenuOpen(false);
-                      }}
-                      className="w-full text-left py-2 text-red-600 font-medium"
+                      onClick={handleLogout}
+                      className="w-full text-left py-2 text-red-600 font-medium hover:bg-red-50 rounded-lg px-2"
                     >
                       Đăng xuất
                     </button>
                   </>
                 ) : (
-                  <>
-                    <button
-                      onClick={() => {
-                        onNavigate("login");
-                        setMobileMenuOpen(false);
-                      }}
-                      className="w-full py-2 border rounded-lg"
+                  <div className="grid grid-cols-2 gap-3">
+                    <Link
+                      to="/login"
+                      onClick={() => setMobileMenuOpen(false)}
+                      className="flex items-center justify-center py-2.5 border border-gray-300 rounded-lg font-medium text-gray-700 hover:bg-gray-50"
                     >
                       Đăng nhập
-                    </button>
-                    <button
-                      onClick={() => {
-                        onNavigate("signup");
-                        setMobileMenuOpen(false);
-                      }}
-                      className="w-full py-2 bg-[#0A84FF] text-white rounded-lg"
+                    </Link>
+                    <Link
+                      to="/signup"
+                      onClick={() => setMobileMenuOpen(false)}
+                      className="flex items-center justify-center py-2.5 bg-[#0A84FF] text-white rounded-lg font-medium hover:bg-[#0070E0] shadow-sm"
                     >
                       Đăng ký
-                    </button>
-                  </>
+                    </Link>
+                  </div>
                 )}
               </div>
             </nav>
