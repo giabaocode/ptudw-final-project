@@ -41,13 +41,13 @@ Auth: None
 
 Body (Input):
 
-JSON
+```JSON
 {
 "email": "...",
 "otp": "..."
 }
 Response (Success): { "message": "Xác thực thành công. Vui lòng đăng nhập." }
-
+```
 POST /api/auth/login
 Mô tả: Đăng nhập.
 
@@ -55,22 +55,23 @@ Auth: None
 
 Body (Input):
 
-JSON
+```JSON
 {
 "email": "...",
 "password": "..."
 }
 Response (Success):
+```
 
-JSON
+```JSON
 {
-"token": "...",
-"user": {
-"id": 1,
-"full_name": "...",
-"email": "...",
-"user_type": "bidder"
-}
+   "token": "...",
+   "user": {
+   "id": 1,
+   "full_name": "...",
+   "email": "...",
+   "user_type": "bidder"
+   }
 }
 GET /api/auth/me
 Mô tả: Lấy thông tin người dùng hiện tại (đã đăng nhập).
@@ -78,6 +79,8 @@ Mô tả: Lấy thông tin người dùng hiện tại (đã đăng nhập).
 Auth: [Auth: Required]
 
 Response (Success): (Giống user object khi login)
+```
+
 
 POST /api/auth/forgot-password
 Mô tả: Yêu cầu OTP để reset mật khẩu (Yêu cầu 5.4).
@@ -95,14 +98,14 @@ Auth: None
 
 Body (Input):
 
-JSON
+```JSON
 {
 "email": "...",
 "otp": "...",
 "new_password": "..."
 }
 Response (Success): { "message": "Đổi mật khẩu thành công." }
-
+```
 2. Phân hệ Công khai (Public / Guest)
    Liên quan đến: Categories, Products, Product_Images, Product_Description_History, Bids, Youtubes
 
@@ -113,7 +116,7 @@ Auth: None
 
 Response (Success):
 
-JSON
+```JSON
 [
 {
 "id": 1,
@@ -130,8 +133,8 @@ Mô tả: Lấy 3 danh sách top 5 cho trang chủ (Yêu cầu 1.2).
 Auth: None
 
 Response (Success):
-
-JSON
+```
+```JSON
 {
 "top_ending_soon": [ ... 5 sản phẩm ... ],
 "top_most_bids": [ ... 5 sản phẩm ... ],
@@ -145,7 +148,7 @@ Auth: None
 Query Params: ?page=1&limit=10&category_id=2
 
 Response (Success): { "products": [...], "pagination": { "total_pages": 10, "current_page": 1 } }
-
+```
 GET /api/products/search
 Mô tả: Tìm kiếm sản phẩm (Yêu cầu 1.4).
 
@@ -162,7 +165,7 @@ Auth: None
 
 Response (Success):
 
-JSON
+```JSON
 {
 "id": 1,
 "name": "...",
@@ -181,8 +184,8 @@ Mô tả: Lấy lịch sử đấu giá (Yêu cầu 2.3).
 Auth: None
 
 Response (Success):
-
-JSON
+```
+```JSON
 [
 { "amount": 500000, "created_at": "...", "bidder_name": "***n A" },
 { "amount": 490000, "created_at": "...", "bidder_name": "***g B" }
@@ -193,7 +196,7 @@ Mô tả: Lấy các câu hỏi và trả lời (Yêu cầu 1.5).
 Auth: None
 
 Response (Success): [ { "question_text": "...", "answer_text": "...", "asked_at": "..." } ]
-
+```
 3. Phân hệ Bidder (Người mua)
    POST /api/products/:id/bid
    Mô tả: Ra giá cho sản phẩm (Yêu cầu 2.2).
@@ -285,7 +288,7 @@ Auth: [Auth: Seller]
 
 Body (Input): (Dạng multipart/form-data để upload ảnh)
 
-JSON
+```JSON
 {
 "name": "...",
 "description": "<p>Mô tả WYSIWYG</p>",
@@ -299,7 +302,7 @@ JSON
 "auto_renew": true
 }
 Response (Success): { "success": true, "product_id": 124 }
-
+```
 PUT /api/seller/products/:id/description
 Mô tả: Bổ sung mô tả sản phẩm (Yêu cầu 3.2 - Append-only).
 
@@ -351,7 +354,7 @@ Auth: [Auth: Required] (Phải là người mua hoặc người bán của giao 
 
 Response (Success):
 
-JSON
+```JSON
 {
 "id": 1,
 "product_name": "...",
@@ -367,14 +370,14 @@ Mô tả: Người mua xác nhận thanh toán và gửi địa chỉ.
 Auth: [Auth: Required] (Chỉ người mua)
 
 Body (Input): (Dạng multipart/form-data để upload ảnh bằng chứng)
-
-JSON
+```
+```JSON
 {
 "shipping_address": "...",
 "payment_proof_image": file1
 }
 Response (Success): { "success": true, "status": "pending_shipping" }
-
+```
 POST /api/transactions/:product_id/ship (Bước 2: Người bán)
 Mô tả: Người bán xác nhận đã nhận tiền và gửi hàng.
 
