@@ -132,3 +132,21 @@ export const updateUserRole = async (req: Request, res: Response) => {
     res.status(400).json({ success: false, message: error.message });
   }
 };
+
+export const updateCategory = async (req: Request, res: Response) => {
+  try {
+    const id = parseInt(req.params.id);
+    const { name, parent_id } = req.body; // Lấy dữ liệu tên và danh mục cha mới
+
+    if (!name) {
+      return res
+        .status(400)
+        .json({ success: false, message: "Tên danh mục là bắt buộc" });
+    }
+
+    const result = await adminService.updateCategory(id, name, parent_id);
+    res.json({ success: true, category: result });
+  } catch (error: any) {
+    res.status(400).json({ success: false, message: error.message });
+  }
+};

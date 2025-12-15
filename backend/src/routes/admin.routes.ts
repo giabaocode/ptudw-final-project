@@ -10,6 +10,7 @@ import {
   deleteUser,
   requestUpgrade,
   updateUserRole,
+  updateCategory,
   getUpgradeRequests,
   approveUpgrade,
   rejectUpgrade,
@@ -45,4 +46,5 @@ router.post("/upgrade-requests/:id/approve", authenticateToken, approveUpgrade);
 router.post("/upgrade-requests/:id/reject", authenticateToken, rejectUpgrade);
 
 router.put("/users/:id", authenticateToken, updateUserRole);
+router.put("/categories/:id", authenticateToken, updateCategory);
 export default router;

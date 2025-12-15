@@ -203,3 +203,23 @@ export const updateUserRole = async (id: number, userType: string) => {
     client.release();
   }
 };
+
+export const updateCategory = async (
+  id: number,
+  name: string,
+  parentId?: number | null
+) => {
+  // Logic update SQL
+  // COALESCE để đảm bảo nếu parentId là undefined thì nó hiểu là null (nếu db cho phép) hoặc giữ nguyên
+  // Ở đây mình viết query update đơn giản
+  const res = await pool.query(
+    `UPDATE Categories SET name = $1, parent_id = $2 WHERE id = $3 RETURNING *`,
+    [name, parentId || null, id]
+  );
+
+  if (res.rows.length === 0) {
+    throw new Error("Danh mục không tồn tại");
+  }
+
+  return res.rows[0];
+};
