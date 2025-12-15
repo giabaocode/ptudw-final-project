@@ -1,9 +1,5 @@
-// src/services/admin.service.ts
 import pool from "../utils/db";
 
-// ==========================================
-// 1. QUẢN LÝ DANH MỤC (Categories)
-// ==========================================
 export const getAllCategories = async () => {
   const res = await pool.query(`
     SELECT c.*, p.name as parent_name, 
@@ -28,7 +24,6 @@ export const deleteCategory = async (id: number) => {
   try {
     await client.query("BEGIN");
 
-    // Check ràng buộc sản phẩm
     const checkRes = await client.query(
       `SELECT COUNT(*) as count FROM Products WHERE category_id = $1`,
       [id]
@@ -49,9 +44,6 @@ export const deleteCategory = async (id: number) => {
   }
 };
 
-// ==========================================
-// 2. QUẢN LÝ SẢN PHẨM (Products)
-// ==========================================
 export const getAllProducts = async () => {
   const res = await pool.query(`
     SELECT p.id, p.name, p.current_price, u.full_name as seller_name, c.name as category_name, p.created_at
@@ -68,9 +60,6 @@ export const deleteProduct = async (id: number) => {
   return { message: "Đã gỡ bỏ sản phẩm" };
 };
 
-// ==========================================
-// 3. QUẢN LÝ USER (Users)
-// ==========================================
 export const getAllUsers = async () => {
   const res = await pool.query(`
     SELECT id, full_name, email, user_type, created_at, seller_expiry_date
@@ -81,15 +70,10 @@ export const getAllUsers = async () => {
 };
 
 export const deleteUser = async (id: number) => {
-  // Logic xóa user thường phức tạp vì ràng buộc khóa ngoại
-  // Ở đây làm đơn giản theo yêu cầu xóa
   await pool.query(`DELETE FROM Users WHERE id = $1`, [id]);
   return { message: "Đã xóa người dùng" };
 };
 
-// ==========================================
-// 4. NÂNG CẤP TÀI KHOẢN (Upgrade Requests)
-// ==========================================
 export const requestUpgrade = async (userId: number) => {
   const checkRes = await pool.query(
     `SELECT id FROM Upgrade_Requests WHERE user_id = $1 AND status = 'pending'`,
@@ -126,7 +110,6 @@ export const approveUpgradeRequest = async (
   try {
     await client.query("BEGIN");
 
-    // 1. Lấy user_id từ request
     const reqRes = await client.query(
       `SELECT user_id FROM Upgrade_Requests WHERE id = $1 FOR UPDATE`,
       [requestId]
@@ -135,13 +118,11 @@ export const approveUpgradeRequest = async (
 
     const userId = reqRes.rows[0].user_id;
 
-    // 2. Cập nhật trạng thái Request
     await client.query(
       `UPDATE Upgrade_Requests SET status = 'approved', processed_by_admin_id = $1 WHERE id = $2`,
       [adminId, requestId]
     );
 
-    // 3. Cập nhật User -> Seller (Thêm 7 ngày tính từ lúc duyệt)
     const expiryDate = new Date();
     expiryDate.setDate(expiryDate.getDate() + 7);
 

@@ -16,7 +16,6 @@ export const getProducts = async (req: Request, res: Response) => {
     const page = parseInt(req.query.page as string) || 1;
     const limit = parseInt(req.query.limit as string) || 10;
 
-    // Lấy category_id
     const categoryId = req.query.category_id
       ? parseInt(req.query.category_id as string)
       : undefined;
@@ -25,11 +24,9 @@ export const getProducts = async (req: Request, res: Response) => {
       `[Controller] Nhận yêu cầu lấy sản phẩm. CategoryID: ${categoryId}`
     );
 
-    // Gọi Service
     const result = await publicService.fetchProducts(page, limit, categoryId);
     res.json(result);
   } catch (error: any) {
-    // --- QUAN TRỌNG: Log lỗi ra terminal để bạn nhìn thấy ---
     console.error(">>> [ERROR] Lỗi tại getProducts:", error);
     res.status(500).json({ message: error.message });
   }
@@ -61,7 +58,7 @@ export const searchProducts = async (req: Request, res: Response) => {
     const keyword = req.query.q as string;
     const page = parseInt(req.query.page as string) || 1;
     const limit = parseInt(req.query.limit as string) || 10;
-    const sort = (req.query.sort as string) || "default"; // time_desc, price_asc
+    const sort = (req.query.sort as string) || "default";
 
     if (!keyword)
       return res.json({
@@ -105,9 +102,6 @@ export const getBidHistory = async (req: Request, res: Response) => {
   }
 };
 
-// ... (Import cũ)
-
-// --- [THÊM MỚI] ---
 export const getQuestions = async (req: Request, res: Response) => {
   try {
     const productId = parseInt(req.params.id);
@@ -127,4 +121,3 @@ export const getSellerReviews = async (req: Request, res: Response) => {
     res.status(500).json({ message: error.message });
   }
 };
-// ------------------

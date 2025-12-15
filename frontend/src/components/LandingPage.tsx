@@ -101,7 +101,40 @@ export function LandingPage({
   // --- [1] TỪ NHÁNH TEST-2: XỬ LÝ WATCHLIST ---
   const { isLoggedIn, token } = useAuth();
 
-  const handleAddToWatchlist = async (e: React.MouseEvent, productId: number) => {
+  const handleBuyNow = async (productId: number) => {
+    if (!isLoggedIn) {
+      toast.error("Vui lòng đăng nhập để mua hàng.");
+      onNavigate("login");
+      return;
+    }
+
+    if (
+      !confirm("Bạn có chắc chắn muốn MUA NGAY sản phẩm này với giá niêm yết?")
+    )
+      return;
+
+    try {
+      await axios.post(
+        `/api/bidder/products/${productId}/buy-now`,
+        {},
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
+
+      toast.success("Mua thành công! Vui lòng thanh toán.");
+
+      // Chuyển hướng ngay đến trang Profile (Tab Đã thắng) để thanh toán
+      // Lưu ý: Cần đảm bảo ProfilePage mở đúng tab 'won' (mặc định là 'won' nên ok)
+      onNavigate("profile");
+    } catch (error: any) {
+      console.error(error);
+      toast.error(error.response?.data?.message || "Lỗi khi mua ngay.");
+    }
+  };
+
+  const handleAddToWatchlist = async (
+    e: React.MouseEvent,
+    productId: number
+  ) => {
     e.preventDefault(); // Ngăn chuyển trang
     e.stopPropagation();
 
@@ -271,6 +304,7 @@ export function LandingPage({
                 onViewDetails={(id) => onNavigate("product", id)}
                 // Truyền hàm Watchlist vào đây
                 onAddToWatchlist={(e) => handleAddToWatchlist(e, product.id)}
+                onBuyNow={(id) => handleBuyNow(id)}
               />
             ))}
           </div>
@@ -360,7 +394,10 @@ export function LandingPage({
                     categoryId={auction.category_id}
                     onCategoryClick={(id) => onNavigate("categories", id)}
                     onViewDetails={(id) => onNavigate("auction", id)}
-                    onAddToWatchlist={(e) => handleAddToWatchlist(e, auction.id)}
+                    onAddToWatchlist={(e) =>
+                      handleAddToWatchlist(e, auction.id)
+                    }
+                    onBuyNow={(id) => handleBuyNow(id)}
                   />
                 ))}
               </div>
@@ -399,7 +436,10 @@ export function LandingPage({
                     categoryId={auction.category_id}
                     onCategoryClick={(id) => onNavigate("categories", id)}
                     onViewDetails={(id) => onNavigate("auction", id)}
-                    onAddToWatchlist={(e) => handleAddToWatchlist(e, auction.id)}
+                    onAddToWatchlist={(e) =>
+                      handleAddToWatchlist(e, auction.id)
+                    }
+                    onBuyNow={(id) => handleBuyNow(id)}
                   />
                 ))}
               </div>
@@ -438,7 +478,10 @@ export function LandingPage({
                     categoryId={product.category_id}
                     onCategoryClick={(id) => onNavigate("categories", id)}
                     onViewDetails={(id) => onNavigate("product", id)}
-                    onAddToWatchlist={(e) => handleAddToWatchlist(e, product.id)}
+                    onAddToWatchlist={(e) =>
+                      handleAddToWatchlist(e, product.id)
+                    }
+                    onBuyNow={(id) => handleBuyNow(id)}
                   />
                 ))}
               </div>
@@ -486,7 +529,10 @@ export function LandingPage({
                     categoryId={auction.category_id}
                     onCategoryClick={(id) => onNavigate("categories", id)}
                     onViewDetails={(id) => onNavigate("auction", id)}
-                    onAddToWatchlist={(e) => handleAddToWatchlist(e, auction.id)}
+                    onAddToWatchlist={(e) =>
+                      handleAddToWatchlist(e, auction.id)
+                    }
+                    onBuyNow={(id) => handleBuyNow(id)}
                   />
                 ))}
               </div>
@@ -532,6 +578,7 @@ export function LandingPage({
                   onCategoryClick={(id) => onNavigate("categories", id)}
                   onViewDetails={(id) => onNavigate("product", id)}
                   onAddToWatchlist={(e) => handleAddToWatchlist(e, product.id)}
+                  onBuyNow={(id) => handleBuyNow(id)}
                 />
               ))}
 

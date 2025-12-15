@@ -1,184 +1,324 @@
-import { useState } from "react";
+// File: frontend/src/App.tsx
+// ✅ Phiên bản chuẩn chỉnh: clean, đúng type, không lỗi JSX / loading
+
+import {
+  BrowserRouter as Router,
+  Routes,
+  Route,
+  Navigate,
+  useLocation,
+  useNavigate,
+  useParams,
+} from "react-router-dom";
+import { Toaster } from "./components/ui/sonner";
+import { AuthProvider, useAuth } from "./context/AuthContext";
+import type { ReactNode } from "react";
+
+// Layout & pages
 import { Header } from "./components/Header";
 import { Footer } from "./components/Footer";
 import { LandingPage } from "./components/LandingPage";
 import { LoginPage } from "./components/LoginPage";
 import { SignupPage } from "./components/SignupPage";
 import { Dashboard } from "./components/Dashboard";
+import { SellerDashboard } from "./components/SellerDashboard";
+import { AdminDashboard } from "./components/AdminDashboard";
 import { AuctionPage } from "./components/AuctionPage";
-import { ProductPage } from "./components/ProductPage"; // ProductPage dùng để mua ngay, AuctionPage để đấu giá
+import { ProductPage } from "./components/ProductPage";
 import { CartPage } from "./components/CartPage";
 import { CheckoutPage } from "./components/CheckoutPage";
 import { PostProductPage } from "./components/PostProductPage";
 import { ProfilePage } from "./components/ProfilePage";
-import { Toaster } from "./components/ui/sonner";
-import { AuthProvider, useAuth } from "./context/AuthContext";
 import { SellerProfilePage } from "./components/SellerProfilePage";
 import { VerifyPage } from "./components/VerifyPage";
 import { ForgotPasswordPage } from "./components/ForgotPasswordPage";
 import { ResetPasswordPage } from "./components/ResetPasswordPage";
-import { useEffect } from "react";
-import { AdminDashboard } from "./components/AdminDashboard";
-// Component Wrapper để lấy AuthContext trong App
-const AppContent = () => {
-  const [currentPage, setCurrentPage] = useState("landing");
-  const [currentId, setCurrentId] = useState<number | null>(null);
-  const [categoryId, setCategoryId] = useState<number | null>(null);
-  const { isLoggedIn, user } = useAuth();
-  console.log("Current User:", user);
 
-  useEffect(() => {
-    // 1. Phân tích URL hiện tại
-    const params = new URLSearchParams(window.location.search);
-    const pageParam = params.get("page");
-    const idParam = params.get("id");
+// ===============================
+// Main Layout
+// ===============================
+const MainLayout = ({ children }: { children: ReactNode }) => {
+  const location = useLocation();
+  const navigate = useNavigate();
 
-    if (pageParam && idParam) {
-      // 2. Nếu có params, set state để chuyển trang ngay lập tức
-      setCurrentPage(pageParam);
-      setCurrentId(Number(idParam));
-
-      // 3. (Tuỳ chọn) Xóa query params trên thanh địa chỉ cho đẹp
-      // window.history.replaceState({}, document.title, "/");
-    }
-  }, []);
-
-  // State mới cho search
-  const [searchQuery, setSearchQuery] = useState<string>("");
+  const hideHeaderFooter = ["/login", "/signup"].includes(location.pathname);
 
   const handleNavigate = (page: string, id?: number) => {
-    window.scrollTo(0, 0);
-    if (page === "categories") {
-      setCurrentPage("landing");
-      setCategoryId(id || null);
-      setSearchQuery(""); // Reset search khi chọn danh mục
-    } else if (page === "landing") {
-      setCurrentPage("landing");
-      setCategoryId(null);
-      setSearchQuery(""); // Reset khi về home
-    } else {
-      setCurrentPage(page);
-      if (id) setCurrentId(id);
-      if (page !== "landing") {
-        setCategoryId(null);
-        setSearchQuery("");
-      }
-    }
+    if (page === "landing") navigate("/");
+    else if (id) navigate(`/${page}/${id}`);
+    else navigate(`/${page}`);
   };
 
   const handleSearch = (query: string) => {
-    setSearchQuery(query);
-    setCategoryId(null); // Clear danh mục
-    setCurrentPage("landing"); // Về landing để hiển thị kết quả
-    window.scrollTo(0, 0);
-  };
-
-  const renderPage = () => {
-    switch (currentPage) {
-      case "landing":
-        return (
-          <LandingPage
-            onNavigate={handleNavigate}
-            categoryId={categoryId}
-            searchQuery={searchQuery}
-            onSearch={handleSearch}
-          />
-        );
-      case "login":
-        return <LoginPage onNavigate={handleNavigate} />;
-      case "signup":
-        return <SignupPage onNavigate={handleNavigate} />;
-      case "dashboard":
-        return isLoggedIn ? (
-          <Dashboard onNavigate={handleNavigate} />
-        ) : (
-          <LoginPage onNavigate={handleNavigate} />
-        );
-      case "forgot-password":
-        return <ForgotPasswordPage onNavigate={handleNavigate} />;
-      case "reset-password":
-        return <ResetPasswordPage onNavigate={handleNavigate} />;
-      case "profile":
-        return isLoggedIn ? (
-          <ProfilePage onNavigate={handleNavigate} />
-        ) : (
-          <LoginPage onNavigate={handleNavigate} />
-        );
-      case "verify":
-        return <VerifyPage onNavigate={handleNavigate} />;
-      case "auction":
-        return (
-          <AuctionPage onNavigate={handleNavigate} auctionId={currentId} />
-        );
-      case "product":
-        return (
-          <ProductPage
-            onNavigate={handleNavigate}
-            onAddToCart={() => {}}
-            productId={currentId}
-          />
-        );
-      case "post-product":
-        return isLoggedIn ? (
-          <PostProductPage onNavigate={handleNavigate} />
-        ) : (
-          <LoginPage onNavigate={handleNavigate} />
-        );
-      case "cart":
-        return <CartPage onNavigate={handleNavigate} />;
-      case "checkout":
-        return <CheckoutPage onNavigate={handleNavigate} />;
-      case "seller-profile":
-        return (
-          <SellerProfilePage onNavigate={handleNavigate} sellerId={currentId} />
-        );
-      case "admin-dashboard":
-        // Logic cũ của bạn:
-        // return isLoggedIn ? (
-        //   <Dashboard onNavigate={handleNavigate} />
-        // ) : (
-        //   <LoginPage onNavigate={handleNavigate} />
-        // );
-
-        // --- SỬA THÀNH CODE MỚI DƯỚI ĐÂY ---
-        if (!isLoggedIn) return <LoginPage onNavigate={handleNavigate} />;
-
-        // Nếu là Admin thì hiện AdminDashboard
-        // Lưu ý: user lấy từ useAuth() nên cần đảm bảo biến user có sẵn trong scope này
-        // (Trong AppContent bạn đã có const { isLoggedIn, user } = useAuth(); chưa?
-        // Nếu chưa, hãy sửa dòng const { isLoggedIn } = useAuth(); thành const { isLoggedIn, user } = useAuth();)
-        if (user?.user_type === "admin") {
-          return <AdminDashboard onNavigate={handleNavigate} />;
-        }
-
-        // Nếu là user thường thì hiện Dashboard thường
-        return <AdminDashboard onNavigate={handleNavigate} />;
-      default:
-        return <LandingPage onNavigate={handleNavigate} />;
-    }
+    navigate(`/?search=${query}`);
   };
 
   return (
     <div className="min-h-screen bg-white flex flex-col">
-      {currentPage !== "login" && currentPage !== "signup" && (
+      {!hideHeaderFooter && (
         <Header
-          currentPage={currentPage}
+          currentPage={location.pathname.replace("/", "") || "landing"}
           onNavigate={handleNavigate}
           cartItemsCount={0}
-          onSearch={handleSearch} // Truyền hàm search xuống Header
+          onSearch={handleSearch}
         />
       )}
-      <main className="flex-grow">{renderPage()}</main>
-      {currentPage !== "login" && currentPage !== "signup" && <Footer />}
+
+      <main className="flex-grow">{children}</main>
+
+      {!hideHeaderFooter && <Footer />}
       <Toaster position="top-center" />
     </div>
   );
 };
 
+// ===============================
+// Protected Route
+// ===============================
+const ProtectedRoute = ({
+  children,
+  allowedRoles,
+}: {
+  children: ReactNode;
+  allowedRoles?: string[];
+}) => {
+  const { isLoggedIn, user, loading } = useAuth();
+
+  if (loading) {
+    return (
+      <div className="flex h-screen items-center justify-center">
+        Loading...
+      </div>
+    );
+  }
+
+  if (!isLoggedIn) {
+    return <Navigate to="/login" replace />;
+  }
+
+  if (allowedRoles && user && !allowedRoles.includes(user.user_type)) {
+    return <Navigate to="/" replace />;
+  }
+
+  return <>{children}</>;
+};
+
+// ===============================
+// Smart Dashboard (role-based)
+// ===============================
+const SmartDashboard = () => {
+  const { user } = useAuth();
+  const navigate = useNavigate();
+
+  const handleNavigate = (page: string, id?: number) => {
+    if (id) navigate(`/${page}/${id}`);
+    else navigate(`/${page}`);
+  };
+
+  if (user?.user_type === "admin") {
+    return <AdminDashboard onNavigate={handleNavigate} />;
+  }
+
+  if (user?.user_type === "seller") {
+    return <SellerDashboard onNavigate={handleNavigate} />;
+  }
+
+  return <Dashboard onNavigate={handleNavigate} />;
+};
+
+// ===============================
+// App Root
+// ===============================
 export default function App() {
   return (
     <AuthProvider>
-      <AppContent />
+      <Router>
+        <MainLayout>
+          <Routes>
+            {/* Public */}
+            <Route path="/" element={<HomeWrapper />} />
+            <Route path="/login" element={<LoginWrapper />} />
+            <Route path="/signup" element={<SignupWrapper />} />
+            <Route
+              path="/forgot-password"
+              element={<ForgotPasswordWrapper />}
+            />
+            <Route path="/reset-password" element={<ResetPasswordWrapper />} />
+            <Route path="/verify" element={<VerifyWrapper />} />
+
+            {/* Product & Auction */}
+            <Route path="/auction/:id" element={<AuctionWrapper />} />
+            <Route path="/product/:id" element={<ProductWrapper />} />
+            <Route
+              path="/seller-profile/:id"
+              element={<SellerProfileWrapper />}
+            />
+
+            {/* Protected */}
+            <Route
+              path="/dashboard"
+              element={
+                <ProtectedRoute>
+                  <SmartDashboard />
+                </ProtectedRoute>
+              }
+            />
+
+            <Route
+              path="/profile"
+              element={
+                <ProtectedRoute>
+                  <ProfileWrapper />
+                </ProtectedRoute>
+              }
+            />
+
+            <Route
+              path="/post-product"
+              element={
+                <ProtectedRoute allowedRoles={["seller"]}>
+                  <PostProductWrapper />
+                </ProtectedRoute>
+              }
+            />
+
+            <Route
+              path="/cart"
+              element={
+                <ProtectedRoute>
+                  <CartWrapper />
+                </ProtectedRoute>
+              }
+            />
+
+            <Route
+              path="/checkout"
+              element={
+                <ProtectedRoute>
+                  <CheckoutWrapper />
+                </ProtectedRoute>
+              }
+            />
+
+            {/* Fallback */}
+            <Route path="*" element={<Navigate to="/" replace />} />
+          </Routes>
+        </MainLayout>
+      </Router>
     </AuthProvider>
   );
 }
+
+// ===============================
+// Wrappers (legacy compatibility)
+// ===============================
+const HomeWrapper = () => {
+  const navigate = useNavigate();
+  const location = useLocation();
+  const searchParams = new URLSearchParams(location.search);
+
+  return (
+    <LandingPage
+      onNavigate={(p, id) => (id ? navigate(`/${p}/${id}`) : navigate(`/${p}`))}
+      searchQuery={searchParams.get("search") || ""}
+      categoryId={
+        searchParams.get("categoryId")
+          ? Number(searchParams.get("categoryId"))
+          : null
+      }
+      onSearch={(q) => navigate(`/?search=${q}`)}
+    />
+  );
+};
+
+const LoginWrapper = () => {
+  const navigate = useNavigate();
+  return (
+    <LoginPage onNavigate={(p) => navigate(p === "landing" ? "/" : `/${p}`)} />
+  );
+};
+
+const SignupWrapper = () => {
+  const navigate = useNavigate();
+  return (
+    <SignupPage onNavigate={(p) => navigate(p === "landing" ? "/" : `/${p}`)} />
+  );
+};
+
+const ForgotPasswordWrapper = () => {
+  const navigate = useNavigate();
+  return <ForgotPasswordPage onNavigate={(p) => navigate(`/${p}`)} />;
+};
+
+const ResetPasswordWrapper = () => {
+  const navigate = useNavigate();
+  return <ResetPasswordPage onNavigate={(p) => navigate(`/${p}`)} />;
+};
+
+const VerifyWrapper = () => {
+  const navigate = useNavigate();
+  return <VerifyPage onNavigate={(p) => navigate(`/${p}`)} />;
+};
+
+const AuctionWrapper = () => {
+  const { id } = useParams();
+  const navigate = useNavigate();
+
+  return (
+    <AuctionPage
+      auctionId={Number(id)}
+      onNavigate={(p, pid) =>
+        pid ? navigate(`/${p}/${pid}`) : navigate(`/${p}`)
+      }
+    />
+  );
+};
+
+const ProductWrapper = () => {
+  const { id } = useParams();
+  const navigate = useNavigate();
+
+  return (
+    <ProductPage
+      productId={Number(id)}
+      onNavigate={(p, pid) =>
+        pid ? navigate(`/${p}/${pid}`) : navigate(`/${p}`)
+      }
+      onAddToCart={() => {}}
+    />
+  );
+};
+
+const SellerProfileWrapper = () => {
+  const { id } = useParams();
+  const navigate = useNavigate();
+
+  return (
+    <SellerProfilePage
+      sellerId={Number(id)}
+      onNavigate={(p, pid) =>
+        pid ? navigate(`/${p}/${pid}`) : navigate(`/${p}`)
+      }
+    />
+  );
+};
+
+const ProfileWrapper = () => {
+  const navigate = useNavigate();
+  return <ProfilePage onNavigate={(p) => navigate(`/${p}`)} />;
+};
+
+const PostProductWrapper = () => {
+  const navigate = useNavigate();
+  return <PostProductPage onNavigate={(p) => navigate(`/${p}`)} />;
+};
+
+const CartWrapper = () => {
+  const navigate = useNavigate();
+  return <CartPage onNavigate={(p) => navigate(`/${p}`)} />;
+};
+
+const CheckoutWrapper = () => {
+  const navigate = useNavigate();
+  return <CheckoutPage onNavigate={(p) => navigate(`/${p}`)} />;
+};

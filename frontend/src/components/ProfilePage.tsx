@@ -98,6 +98,14 @@ export function ProfilePage({ onNavigate }: ProfilePageProps) {
   );
   const [ratingComment, setRatingComment] = useState("");
 
+  // 👇👇👇 THÊM BỘ STATE MỚI NÀY (CHO SELLER ĐÁNH GIÁ WINNER) 👇👇👇
+  const [rateWinnerModalOpen, setRateWinnerModalOpen] = useState(false);
+  const [rateWinnerProduct, setRateWinnerProduct] = useState<any>(null);
+  const [rateWinnerScore, setRateWinnerScore] = useState<
+    "positive" | "negative"
+  >("positive");
+  const [rateWinnerComment, setRateWinnerComment] = useState("");
+
   const [isAppendModalOpen, setIsAppendModalOpen] = useState(false);
   const [selectedProductId, setSelectedProductId] = useState<number | null>(
     null
@@ -106,6 +114,7 @@ export function ProfilePage({ onNavigate }: ProfilePageProps) {
 
   const [transModalOpen, setTransModalOpen] = useState(false);
   const [selectedTransProduct, setSelectedTransProduct] = useState<any>(null);
+  const [wonProducts, setWonProducts] = useState<Product[]>([]); // <--- THÊM MỚI (Dùng cho tab Đã thắng)
 
   const handleOpenTransaction = (product: any) => {
     setSelectedTransProduct(product);
@@ -135,6 +144,12 @@ export function ProfilePage({ onNavigate }: ProfilePageProps) {
           (await axios.get("/api/bidder/my-bids", { headers })).data
         );
       } catch (e) {}
+      try {
+        const wonRes = await axios.get("/api/bidder/won-auctions", { headers });
+        setWonProducts(wonRes.data);
+      } catch (e) {
+        console.error("Lỗi lấy danh sách thắng:", e);
+      }
       try {
         setMyFeedback(
           (await axios.get("/api/auth/feedback", { headers })).data
@@ -169,14 +184,32 @@ export function ProfilePage({ onNavigate }: ProfilePageProps) {
     };
   }, [isAppendModalOpen]);
 
+  useEffect(() => {
+    if (!transModalOpen) {
+      // Khi modal đóng, lập tức xóa mọi style khóa màn hình
+      setTimeout(() => {
+        document.body.style.overflow = "";
+        document.body.style.paddingRight = "";
+        document.body.style.pointerEvents = "";
+        // Xóa attribute của Radix UI (thủ phạm chính)
+        document.body.removeAttribute("data-scroll-locked");
+      }, 0);
+    }
+  }, [transModalOpen]);
+
   const now = new Date().getTime();
-  const wonBids = rawMyBids.filter(
-    (p) =>
-      new Date(p.end_at).getTime() <= now &&
-      p.current_highest_bidder_id === user?.id
-  );
+  // 🟢 LOGIC MỚI: Coi là "Đã thắng" nếu:
+  // 1. Có Transaction (Mua ngay sẽ tạo transaction luôn)
+  // 2. HOẶC: Hết giờ VÀ mình là người giữ giá cao nhất
+  const wonBids = wonProducts;
+
+  // 2. Active Bids: Lọc từ API my-bids
+  // Logic: Lấy những cái chưa hết hạn HOẶC hết hạn nhưng mình không phải người thắng
   const activeBids = rawMyBids.filter(
-    (p) => new Date(p.end_at).getTime() > now
+    (p) =>
+      !(p as any).transaction_status && // Chưa có giao dịch
+      (new Date(p.end_at).getTime() > now ||
+        p.current_highest_bidder_id !== user?.id)
   );
 
   const sellingProducts = myProducts.filter(
@@ -312,23 +345,34 @@ export function ProfilePage({ onNavigate }: ProfilePageProps) {
       toast.error(error.response?.data?.message || "Lỗi cập nhật mô tả.");
     }
   };
-  const handleRateWinner = async (
-    productId: number,
-    score: "positive" | "negative"
-  ) => {
-    const comment = prompt(
-      score === "positive" ? "Nhập lời khen:" : "Nhập lý do trừ điểm:"
-    );
-    if (!comment) return;
+  // 1. Hàm mở Modal (Gắn vào nút bấm)
+  const handleOpenRateWinner = (product: any) => {
+    setRateWinnerProduct(product);
+    setRateWinnerScore("positive"); // Reset về mặc định
+    setRateWinnerComment(""); // Reset comment
+    setRateWinnerModalOpen(true); // Mở modal
+  };
+
+  // 2. Hàm Gửi đánh giá (Gắn vào nút Gửi trong Modal)
+  const submitRateWinner = async () => {
+    if (!rateWinnerProduct) return;
+
+    if (!rateWinnerComment.trim()) {
+      toast.error("Vui lòng nhập nhận xét!");
+      return;
+    }
+
     try {
       await axios.post(
-        `/api/seller/products/${productId}/rate-winner`,
-        { score, comment },
+        `/api/seller/products/${rateWinnerProduct.id}/rate-winner`,
+        { score: rateWinnerScore, comment: rateWinnerComment },
         { headers: { Authorization: `Bearer ${token}` } }
       );
-      toast.success("Đã gửi đánh giá!");
+      toast.success("Đã gửi đánh giá cho người mua!");
+      setRateWinnerModalOpen(false); // Đóng modal
+      // Reload lại data nếu cần thiết (optional)
     } catch (e: any) {
-      toast.error(e.response?.data?.message || "Lỗi.");
+      toast.error(e.response?.data?.message || "Lỗi gửi đánh giá.");
     }
   };
 
@@ -398,7 +442,7 @@ export function ProfilePage({ onNavigate }: ProfilePageProps) {
                 </div>
                 <button
                   onClick={handleRequestUpgrade}
-                  className="bg-yellow-600 hover:bg-yellow-700 text-white px-4 py-2 rounded font-bold transition"
+                  className="bg-yellow-600 hover:bg-yellow-700 text-black px-4 py-2 rounded font-bold transition"
                 >
                   Xin nâng cấp
                 </button>
@@ -534,7 +578,7 @@ export function ProfilePage({ onNavigate }: ProfilePageProps) {
                               // Nút Quản lý đơn hàng sẽ mở Modal
                               <Button
                                 size="sm"
-                                className="h-8 bg-blue-600 text-white hover:bg-blue-700"
+                                className="h-8 bg-blue-600 text-black hover:bg-blue-700"
                                 onClick={() => handleOpenTransaction(p)}
                               >
                                 {p.transaction_status === "pending_payment"
@@ -927,14 +971,14 @@ export function ProfilePage({ onNavigate }: ProfilePageProps) {
                         (p as any).transaction_status === "completed" ? (
                           <Button
                             className="w-full bg-green-100 text-green-700 hover:bg-green-200 border-0"
-                            onClick={() => handleRateWinner(p.id, "positive")}
+                            onClick={() => handleOpenRateWinner(p)}
                           >
                             <ThumbsUp className="w-4 h-4 mr-2" /> Đánh giá người
                             mua
                           </Button>
                         ) : (
                           <Button
-                            className="w-full bg-blue-600 hover:bg-blue-700 text-white shadow-sm"
+                            className="w-full bg-blue-600 hover:bg-blue-700 text-black shadow-sm"
                             onClick={() => handleOpenTransaction(p)}
                           >
                             Quản lý đơn hàng
@@ -1162,6 +1206,117 @@ export function ProfilePage({ onNavigate }: ProfilePageProps) {
           </div>,
           document.body
         )}
+      {/* --- MODAL: SELLER ĐÁNH GIÁ WINNER --- */}
+      {rateWinnerModalOpen &&
+        createPortal(
+          <div
+            style={{
+              position: "fixed",
+              top: 0,
+              left: 0,
+              width: "100%",
+              height: "100%",
+              zIndex: 99999,
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              backgroundColor: "rgba(0,0,0,0.6)",
+              backdropFilter: "blur(4px)",
+            }}
+          >
+            <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden relative border border-gray-100 animate-in fade-in zoom-in duration-200 m-4">
+              {/* Header */}
+              <div className="flex justify-between items-center p-5 border-b bg-gray-50">
+                <h3 className="font-bold text-xl text-gray-800">
+                  Đánh giá Người mua
+                </h3>
+                <button
+                  onClick={() => setRateWinnerModalOpen(false)}
+                  className="text-gray-400 hover:text-gray-900 p-1 rounded-full hover:bg-gray-200 transition-colors"
+                >
+                  <X className="w-6 h-6" />
+                </button>
+              </div>
+
+              {/* Body */}
+              <div className="p-6 space-y-6">
+                {rateWinnerProduct && (
+                  <div className="text-center pb-4 border-b border-gray-100">
+                    <p className="text-sm text-gray-500 mb-1">
+                      Người chiến thắng:
+                    </p>
+                    <p className="font-bold text-blue-600 text-lg">
+                      {rateWinnerProduct.bidder_name || "Ẩn danh"}
+                    </p>
+                    <p className="text-xs text-gray-400 mt-1">
+                      Sản phẩm: {rateWinnerProduct.name}
+                    </p>
+                  </div>
+                )}
+
+                <div className="space-y-3">
+                  <Label className="text-base font-semibold text-gray-800">
+                    Mức độ hài lòng
+                  </Label>
+                  <div className="flex gap-4">
+                    <div
+                      onClick={() => setRateWinnerScore("positive")}
+                      className={`flex-1 border-2 p-4 rounded-xl cursor-pointer transition-all flex flex-col items-center justify-center gap-2 font-bold ${
+                        rateWinnerScore === "positive"
+                          ? "bg-green-50 border-green-500 text-green-700 shadow-sm ring-1 ring-green-200"
+                          : "border-gray-100 hover:border-gray-300 text-gray-500 hover:bg-gray-50"
+                      }`}
+                    >
+                      <ThumbsUp className="w-8 h-8" /> Tốt (+1)
+                    </div>
+                    <div
+                      onClick={() => setRateWinnerScore("negative")}
+                      className={`flex-1 border-2 p-4 rounded-xl cursor-pointer transition-all flex flex-col items-center justify-center gap-2 font-bold ${
+                        rateWinnerScore === "negative"
+                          ? "bg-red-50 border-red-500 text-red-700 shadow-sm ring-1 ring-red-200"
+                          : "border-gray-100 hover:border-gray-300 text-gray-500 hover:bg-gray-50"
+                      }`}
+                    >
+                      <ThumbsDown className="w-8 h-8" /> Tệ (-1)
+                    </div>
+                  </div>
+                </div>
+
+                <div className="space-y-2">
+                  <Label className="text-base font-semibold text-gray-800">
+                    Nhận xét
+                  </Label>
+                  <Textarea
+                    placeholder="Người mua thanh toán nhanh không? Giao tiếp thế nào?..."
+                    value={rateWinnerComment}
+                    onChange={(e) => setRateWinnerComment(e.target.value)}
+                    className="min-h-[100px] text-base p-3 resize-none border border-gray-300 focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
+                  />
+                </div>
+              </div>
+
+              {/* Footer */}
+              <div className="p-5 bg-gray-50 border-t flex justify-end gap-3">
+                <Button
+                  variant="outline"
+                  onClick={() => setRateWinnerModalOpen(false)}
+                  className="h-11 px-6 border-gray-300"
+                >
+                  Hủy bỏ
+                </Button>
+                <Button
+                  onClick={submitRateWinner}
+                  className="bg-blue-600 hover:bg-blue-700 h-11 px-6 font-bold text-black shadow-md"
+                >
+                  Gửi đánh giá
+                </Button>
+              </div>
+            </div>
+          </div>,
+          document.body
+        )}
+      {/* --- TRANSACTION MODAL (Sử dụng Portal) --- */}
+      {/* --- TRANSACTION MODAL (Chuẩn Shadcn) --- */}
       {transModalOpen && selectedTransProduct && (
         <TransactionModal
           isOpen={transModalOpen}
@@ -1174,7 +1329,6 @@ export function ProfilePage({ onNavigate }: ProfilePageProps) {
               : "bidder"
           }
           onUpdate={() => {
-            // Reload lại trang để cập nhật trạng thái mới
             window.location.reload();
           }}
         />
