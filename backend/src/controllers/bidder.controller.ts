@@ -106,11 +106,33 @@ export const createQuestion = async (req: Request, res: Response) => {
   }
 };
 
+// --- ĐÃ CHỈNH SỬA HÀM NÀY ---
 export const submitPaymentController = async (req: Request, res: Response) => {
   try {
     const userId = (req as any).user.id;
     const productId = parseInt(req.params.id);
-    const { address, proof } = req.body;
+
+    // 1. Lấy address từ body
+    const { address } = req.body;
+
+    // 2. Lấy file từ Multer
+    const file = req.file;
+
+    if (!address) {
+      return res
+        .status(400)
+        .json({ message: "Vui lòng nhập địa chỉ nhận hàng" });
+    }
+
+    if (!file) {
+      return res
+        .status(400)
+        .json({ message: "Vui lòng upload ảnh minh chứng chuyển khoản" });
+    }
+
+    // 3. Lấy đường dẫn file (Cloudinary URL hoặc Local Path)
+    const proof = file.path;
+
     const result = await bidderService.submitPayment(
       userId,
       productId,

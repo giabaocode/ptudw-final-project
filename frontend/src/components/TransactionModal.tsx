@@ -11,6 +11,8 @@ import {
   AlertTriangle,
   ExternalLink,
   X,
+  UploadCloud, // Icon upload
+  Image as ImageIcon, // Icon ảnh
 } from "lucide-react";
 import { toast } from "sonner";
 import axios from "axios";
@@ -42,38 +44,84 @@ export function TransactionModal({
 }: TransactionModalProps) {
   const { token } = useAuth();
   const [loading, setLoading] = useState(false);
+
+  // State địa chỉ
   const [address, setAddress] = useState("");
-  const [proof, setProof] = useState("");
+
+  // --- THAY ĐỔI: State cho File Upload ---
+  const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
 
   const status: TransactionStatus =
     product.transaction_status || "pending_payment";
 
-  // --- 1. XỬ LÝ KHÓA SCROLL THỦ CÔNG (Giống AppendModal) ---
+  // Khóa scroll khi mở modal
   useEffect(() => {
     if (isOpen) {
       document.body.style.overflow = "hidden";
     }
     return () => {
       document.body.style.overflow = "unset";
+      // Cleanup preview url khi đóng modal
+      if (previewUrl) URL.revokeObjectURL(previewUrl);
     };
   }, [isOpen]);
 
-  // --- 2. API ACTIONS ---
+  // --- XỬ LÝ CHỌN FILE ---
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files && e.target.files[0]) {
+      const file = e.target.files[0];
+
+      // Validate loại file (chỉ ảnh)
+      if (!file.type.startsWith("image/")) {
+        toast.error("Vui lòng chọn file ảnh (JPG, PNG, ...)");
+        return;
+      }
+
+      // Validate kích thước (Ví dụ: < 5MB)
+      if (file.size > 5 * 1024 * 1024) {
+        toast.error("Ảnh quá lớn. Vui lòng chọn ảnh < 5MB");
+        return;
+      }
+
+      setSelectedFile(file);
+      const url = URL.createObjectURL(file);
+      setPreviewUrl(url);
+    }
+  };
+
+  const removeFile = () => {
+    setSelectedFile(null);
+    if (previewUrl) URL.revokeObjectURL(previewUrl);
+    setPreviewUrl(null);
+  };
+
+  // --- API ACTIONS ---
   const handlePay = async () => {
-    if (!address || !proof)
-      return toast.error("Vui lòng nhập địa chỉ và link ảnh");
+    // Validate: Bắt buộc phải có địa chỉ và File ảnh
+    if (!address) return toast.error("Vui lòng nhập địa chỉ nhận hàng");
+    if (!selectedFile)
+      return toast.error("Vui lòng tải lên ảnh bằng chứng thanh toán");
+
     setLoading(true);
     try {
-      await axios.post(
-        `/api/bidder/products/${product.id}/pay`,
-        { address, proof },
-        { headers: { Authorization: `Bearer ${token}` } }
-      );
+      // --- QUAN TRỌNG: Dùng FormData để gửi file ---
+      const formData = new FormData();
+      formData.append("address", address);
+      formData.append("proof", selectedFile); // Key 'proof' này phải khớp với upload.single('proof') ở backend
+
+      await axios.post(`/api/bidder/products/${product.id}/pay`, formData, {
+        headers: {
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "multipart/form-data", // Bắt buộc dòng này
+        },
+      });
       toast.success("Đã gửi thông tin thanh toán!");
       onUpdate();
       onClose();
     } catch (e: any) {
-      toast.error(e.response?.data?.message || "Lỗi");
+      console.error(e);
+      toast.error(e.response?.data?.message || "Lỗi khi gửi thông tin");
     } finally {
       setLoading(false);
     }
@@ -115,7 +163,7 @@ export function TransactionModal({
     }
   };
 
-  // --- 3. HELPER RENDER UI ---
+  // --- HELPER RENDER UI ---
   const renderStatusStep = (stepStatus: string, label: string, icon: any) => {
     const steps = [
       "pending_payment",
@@ -156,22 +204,61 @@ export function TransactionModal({
             <div className="bg-yellow-50 p-3 rounded text-sm text-yellow-800 border border-yellow-200">
               Hãy chuyển khoản và nhập thông tin để nhận hàng.
             </div>
+
             <div className="space-y-2">
               <Label>Địa chỉ nhận hàng</Label>
               <Input
                 value={address}
                 onChange={(e) => setAddress(e.target.value)}
-                placeholder="Số nhà, đường..."
+                placeholder="Số nhà, đường, phường, quận..."
               />
             </div>
+
+            {/* --- UI UPLOAD ẢNH --- */}
             <div className="space-y-2">
-              <Label>Link ảnh chuyển khoản (URL)</Label>
-              <Input
-                value={proof}
-                onChange={(e) => setProof(e.target.value)}
-                placeholder="https://imgur.com/..."
-              />
+              <Label>Ảnh chuyển khoản (Bằng chứng)</Label>
+
+              {!previewUrl ? (
+                // Khu vực chưa chọn ảnh
+                <label className="flex flex-col items-center justify-center w-full h-32 border-2 border-dashed border-gray-300 rounded-lg cursor-pointer hover:bg-gray-50 hover:border-blue-500 transition-colors">
+                  <div className="flex flex-col items-center justify-center pt-5 pb-6">
+                    <UploadCloud className="w-8 h-8 text-gray-400 mb-2" />
+                    <p className="text-sm text-gray-500">
+                      <span className="font-semibold">Bấm để tải ảnh lên</span>
+                    </p>
+                    <p className="text-xs text-gray-400">JPG, PNG (Max 5MB)</p>
+                  </div>
+                  <input
+                    type="file"
+                    className="hidden"
+                    accept="image/*"
+                    onChange={handleFileChange}
+                  />
+                </label>
+              ) : (
+                // Khu vực đã chọn ảnh (Preview)
+                <div className="relative w-full h-48 rounded-lg overflow-hidden border border-gray-200 group">
+                  <img
+                    src={previewUrl}
+                    alt="Proof Preview"
+                    className="w-full h-full object-contain bg-gray-50"
+                  />
+                  {/* Nút xóa ảnh */}
+                  <button
+                    onClick={removeFile}
+                    className="absolute top-2 right-2 p-1 bg-red-500 text-black rounded-full opacity-0 group-hover:opacity-100 transition-opacity hover:bg-red-600"
+                    title="Xóa ảnh"
+                  >
+                    <X className="w-4 h-4" />
+                  </button>
+                  <div className="absolute bottom-0 left-0 right-0 bg-black/50 text-black text-xs p-1 text-center truncate">
+                    {selectedFile?.name}
+                  </div>
+                </div>
+              )}
             </div>
+            {/* --------------------- */}
+
             <Button
               onClick={handlePay}
               disabled={loading}
@@ -200,16 +287,32 @@ export function TransactionModal({
               <p>
                 <strong>Địa chỉ:</strong> {product.shipping_address}
               </p>
-              <p className="flex items-center gap-1">
-                <strong>Bằng chứng:</strong>{" "}
-                <a
-                  href={product.payment_proof}
-                  target="_blank"
-                  className="text-blue-500 underline flex items-center"
-                >
-                  Xem ảnh <ExternalLink className="w-3 h-3" />
-                </a>
-              </p>
+              <div className="space-y-1">
+                <strong>Bằng chứng thanh toán:</strong>
+                {/* Hiển thị ảnh bằng chứng từ Backend */}
+                {product.payment_proof ? (
+                  <div className="mt-2 border rounded overflow-hidden">
+                    <img
+                      src={product.payment_proof}
+                      alt="Payment Proof"
+                      className="max-h-60 w-full object-contain bg-white"
+                    />
+                    <a
+                      href={product.payment_proof}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="block text-center text-blue-600 text-xs py-1 hover:underline bg-gray-50"
+                    >
+                      Xem ảnh gốc{" "}
+                      <ExternalLink className="w-3 h-3 inline ml-1" />
+                    </a>
+                  </div>
+                ) : (
+                  <span className="text-gray-400 italic ml-2">
+                    Không có ảnh
+                  </span>
+                )}
+              </div>
             </div>
             <Button
               onClick={handleShip}
@@ -261,7 +364,6 @@ export function TransactionModal({
     }
   };
 
-  // --- 4. RENDER VỚI CREATE PORTAL (Giống hệt AppendModal) ---
   if (!isOpen) return null;
 
   return createPortal(
@@ -269,13 +371,11 @@ export function TransactionModal({
       className="fixed inset-0 z-[99999] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4"
       style={{ position: "fixed", top: 0, left: 0, bottom: 0, right: 0 }}
     >
-      {/* Click ra ngoài để đóng */}
       <div className="fixed inset-0" onClick={onClose}></div>
 
-      {/* MODAL WRAPPER - Giống hệt class của AppendModal */}
-      <div className="relative z-10 bg-white w-full max-w-md rounded-xl shadow-2xl border border-gray-1200 overflow-hidden flex flex-col animate-in zoom-in-95 duration-200">
+      <div className="relative z-10 bg-white w-full max-w-md rounded-xl shadow-2xl border border-gray-1200 overflow-hidden flex flex-col animate-in zoom-in-95 duration-200 max-h-[90vh]">
         {/* HEADER */}
-        <div className="flex items-center justify-between px-5 py-4 bg-gray-50 border-b border-gray-100">
+        <div className="flex items-center justify-between px-5 py-4 bg-gray-50 border-b border-gray-100 flex-shrink-0">
           <h3 className="text-gray-800 font-bold text-lg">
             Trạng thái đơn hàng
           </h3>
@@ -288,7 +388,7 @@ export function TransactionModal({
         </div>
 
         {/* TIMELINE */}
-        <div className="flex justify-between items-center px-5 py-4 border-b border-gray-100 bg-white">
+        <div className="flex justify-between items-center px-5 py-4 border-b border-gray-100 bg-white flex-shrink-0">
           {renderStatusStep(
             "pending_payment",
             "Thanh toán",
@@ -314,15 +414,17 @@ export function TransactionModal({
           )}
         </div>
 
-        {/* BODY CONTENT */}
-        <div className="pt-5 bg-white">{renderContent()}</div>
+        {/* BODY CONTENT - Cuộn nếu quá dài */}
+        <div className="pt-5 bg-white overflow-y-auto custom-scrollbar">
+          {renderContent()}
 
-        {/* CHAT BOX */}
-        {status !== "cancelled" && (
-          <div className="bg-white px-5 pb-5">
-            <ChatBox productId={product.id} />
-          </div>
-        )}
+          {/* CHAT BOX */}
+          {status !== "cancelled" && (
+            <div className="bg-white px-5 pb-5">
+              <ChatBox productId={product.id} />
+            </div>
+          )}
+        </div>
       </div>
     </div>,
     document.body
