@@ -98,7 +98,7 @@ export function LandingPage({
   const [sortOption, setSortOption] = useState("default");
   const [loading, setLoading] = useState(true);
 
-  // --- [1] TỪ NHÁNH TEST-2: XỬ LÝ WATCHLIST ---
+  // --- [1] XỬ LÝ WATCHLIST & MUA NGAY ---
   const { isLoggedIn, token } = useAuth();
 
   const handleBuyNow = async (productId: number) => {
@@ -121,9 +121,6 @@ export function LandingPage({
       );
 
       toast.success("Mua thành công! Vui lòng thanh toán.");
-
-      // Chuyển hướng ngay đến trang Profile (Tab Đã thắng) để thanh toán
-      // Lưu ý: Cần đảm bảo ProfilePage mở đúng tab 'won' (mặc định là 'won' nên ok)
       onNavigate("profile");
     } catch (error: any) {
       console.error(error);
@@ -135,7 +132,7 @@ export function LandingPage({
     e: React.MouseEvent,
     productId: number
   ) => {
-    e.preventDefault(); // Ngăn chuyển trang
+    e.preventDefault();
     e.stopPropagation();
 
     if (!isLoggedIn) {
@@ -161,7 +158,7 @@ export function LandingPage({
   };
   // --------------------------------------------
 
-  // --- [2] TỪ NHÁNH PAGINATION: TÌM KIẾM HERO ---
+  // --- [2] TÌM KIẾM HERO ---
   const [heroKeyword, setHeroKeyword] = useState("");
 
   const handleHeroSearch = () => {
@@ -302,7 +299,6 @@ export function LandingPage({
                 categoryId={product.category_id}
                 onCategoryClick={(id) => onNavigate("categories", id)}
                 onViewDetails={(id) => onNavigate("product", id)}
-                // Truyền hàm Watchlist vào đây
                 onAddToWatchlist={(e) => handleAddToWatchlist(e, product.id)}
                 onBuyNow={(id) => handleBuyNow(id)}
               />
@@ -369,7 +365,8 @@ export function LandingPage({
                   Sắp Kết Thúc
                 </h2>
               </div>
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-6">
+              {/* THAY ĐỔI 1: Grid 2 cột */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-2 gap-6">
                 {topEndingSoon.map((auction) => (
                   <ProductCard
                     key={auction.id}
@@ -411,7 +408,8 @@ export function LandingPage({
                   Sôi Động Nhất
                 </h2>
               </div>
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-6">
+              {/* THAY ĐỔI 2: Grid 2 cột */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-2 gap-6">
                 {topMostBids.map((auction) => (
                   <ProductCard
                     key={auction.id}
@@ -453,7 +451,8 @@ export function LandingPage({
                   Top Giá Cao Nhất
                 </h2>
               </div>
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-6">
+              {/* THAY ĐỔI 3: Grid 2 cột */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-2 gap-6">
                 {topHighestPrice.map((product) => (
                   <ProductCard
                     key={product.id}

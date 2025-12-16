@@ -616,15 +616,20 @@ export function AuctionPage({ onNavigate, auctionId }: AuctionPageProps) {
               />
             </div>
             {auction.images && auction.images.length > 1 && (
-              <div className="flex mt-4 overflow-x-auto pb-2">
+              // Thêm gap-2 để tạo khoảng cách
+              <div className="flex mt-4 gap-2 overflow-x-auto pb-2 scrollbar-hide">
                 {auction.images.map((img, idx) => (
                   <button
                     key={idx}
                     onClick={() => setActiveImage(img)}
-                    className={`w-full rounded-lg border-2 transition-all ${
+                    // SỬA Ở ĐÂY:
+                    // 1. Thay w-full bằng w-20 h-20 (hoặc w-16 h-16 nếu muốn nhỏ hơn nữa)
+                    // 2. Thêm shrink-0 để không bị co lại khi nhiều ảnh
+                    // 3. Thêm overflow-hidden để bo góc ảnh chuẩn hơn
+                    className={`relative w-20 h-20 shrink-0 rounded-lg border-2 transition-all overflow-hidden ${
                       activeImage === img
-                        ? "border-blue-500"
-                        : "border-transparent opacity-70 hover:opacity-100"
+                        ? "border-blue-500 ring-1 ring-blue-500 opacity-100"
+                        : "border-transparent opacity-60 hover:opacity-100"
                     }`}
                   >
                     <ImageWithFallback
@@ -664,22 +669,24 @@ export function AuctionPage({ onNavigate, auctionId }: AuctionPageProps) {
               </div>
 
               <Tabs defaultValue="description" className="mt-8">
-                <TabsList className="w-full justify-start border-b border-gray-200 bg-transparent p-0 mb-6">
+                <TabsList className="w-full justify-start border-b border-gray-200 bg-transparent p-0 mb-6 flex gap-8">
                   <TabsTrigger
                     value="description"
-                    className="rounded-none border-b-2 border-transparent data-[state=active]:border-blue-500 data-[state=active]:text-blue-600 px-0 pb-3 mr-8 text-base"
+                    className="relative rounded border border-transparent bg-transparent px-0 py-2 text-base font-medium text-gray-500 transition-all duration-300 hover:text-blue-600/80 data-[state=active]:border-blue-600 data-[state=active]:text-blue-700 data-[state=active]:shadow-none"
                   >
                     Mô tả
                   </TabsTrigger>
+
                   <TabsTrigger
                     value="history"
-                    className="rounded-none border-b-2 border-transparent data-[state=active]:border-blue-500 data-[state=active]:text-blue-600 px-0 pb-3 mr-8 text-base"
+                    className="relative rounded border border-transparent bg-transparent px-0 py-2 text-base font-medium text-gray-500 transition-all duration-300 hover:text-blue-600/80 data-[state=active]:border-blue-600 data-[state=active]:text-blue-700 data-[state=active]:shadow-none"
                   >
                     Lịch sử đấu giá
                   </TabsTrigger>
+
                   <TabsTrigger
                     value="qa"
-                    className="rounded-none border-b-2 border-transparent data-[state=active]:border-blue-500 data-[state=active]:text-blue-600 px-0 pb-3 mr-8 text-base"
+                    className="relative rounded border border-transparent bg-transparent px-0 py-2 text-base font-medium text-gray-500 transition-all duration-300 hover:text-blue-600/80 data-[state=active]:border-blue-600 data-[state=active]:text-blue-700 data-[state=active]:shadow-none"
                   >
                     Hỏi đáp ({questions.length})
                   </TabsTrigger>

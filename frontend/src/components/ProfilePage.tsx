@@ -451,7 +451,7 @@ export function ProfilePage({ onNavigate }: ProfilePageProps) {
             {user?.user_type === "seller" && (
               <Button
                 onClick={() => onNavigate("post-product")}
-                className="bg-[#1a73e8] hover:bg-[#1557b0] shadow-md gap-2 text-black"
+                className="bg-[#1a73e8] hover:bg-[#1557b0] shadow-md gap-2 text-white"
               >
                 <Package className="w-4 h-4" /> Đăng bán
               </Button>
@@ -578,7 +578,7 @@ export function ProfilePage({ onNavigate }: ProfilePageProps) {
                               // Nút Quản lý đơn hàng sẽ mở Modal
                               <Button
                                 size="sm"
-                                className="h-8 bg-blue-600 text-black hover:bg-blue-700"
+                                className="h-8 bg-blue-600 text-white hover:bg-blue-700"
                                 onClick={() => handleOpenTransaction(p)}
                               >
                                 {p.transaction_status === "pending_payment"
