@@ -1,4 +1,5 @@
-import * as express from 'express';
+import * as express from "express";
+import * as multer from "multer";
 
 // Khai báo mở rộng Global cho Express
 declare global {
@@ -8,6 +9,7 @@ declare global {
         id: number;
         user_type: string;
       };
+      files: multer.File[];
     }
   }
 }

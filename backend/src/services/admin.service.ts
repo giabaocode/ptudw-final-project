@@ -190,17 +190,59 @@ export const updateCategory = async (
   name: string,
   parentId?: number | null
 ) => {
-  // Logic update SQL
-  // COALESCE để đảm bảo nếu parentId là undefined thì nó hiểu là null (nếu db cho phép) hoặc giữ nguyên
-  // Ở đây mình viết query update đơn giản
-  const res = await pool.query(
-    `UPDATE Categories SET name = $1, parent_id = $2 WHERE id = $3 RETURNING *`,
-    [name, parentId || null, id]
-  );
+  const client = await pool.connect();
+  try {
+    await client.query("BEGIN");
 
-  if (res.rows.length === 0) {
-    throw new Error("Danh mục không tồn tại");
+    // 1. Kiểm tra cơ bản: Không được chọn chính mình làm cha
+    if (parentId && parentId === id) {
+      throw new Error("Không thể chọn chính danh mục này làm danh mục cha.");
+    }
+
+    // 2. Kiểm tra nâng cao: Ngăn chặn vòng lặp (A là cha B, giờ sửa A chọn B làm cha -> Lỗi)
+    if (parentId) {
+      // Tìm xem danh mục cha dự kiến (parentId) hiện tại có đang là con của danh mục này (id) không?
+      // Hoặc kiểm tra đệ quy (Recursive) để an toàn nhất.
+      // Ở đây dùng cách kiểm tra vòng lặp bằng CTE (Common Table Expression) trong PostgreSQL
+
+      const checkLoopQuery = `
+        WITH RECURSIVE category_tree AS (
+          -- Bắt đầu từ danh mục cha dự kiến
+          SELECT id, parent_id FROM Categories WHERE id = $1
+          UNION ALL
+          -- Truy ngược lên các cấp cha của nó
+          SELECT c.id, c.parent_id 
+          FROM Categories c
+          INNER JOIN category_tree ct ON c.id = ct.parent_id
+        )
+        SELECT id FROM category_tree WHERE id = $2;
+      `;
+
+      const loopRes = await client.query(checkLoopQuery, [parentId, id]);
+
+      if (loopRes.rows.length > 0) {
+        throw new Error(
+          "Không thể chọn danh mục con (hoặc cháu) làm danh mục cha. Sẽ gây lỗi vòng lặp!"
+        );
+      }
+    }
+
+    // 3. Thực hiện Update nếu hợp lệ
+    const res = await client.query(
+      `UPDATE Categories SET name = $1, parent_id = $2 WHERE id = $3 RETURNING *`,
+      [name, parentId || null, id]
+    );
+
+    if (res.rows.length === 0) {
+      throw new Error("Danh mục không tồn tại");
+    }
+
+    await client.query("COMMIT");
+    return res.rows[0];
+  } catch (e) {
+    await client.query("ROLLBACK");
+    throw e;
+  } finally {
+    client.release();
   }
-
-  return res.rows[0];
 };
