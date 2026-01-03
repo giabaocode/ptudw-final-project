@@ -1,6 +1,7 @@
 import pool from "../utils/db";
 import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
+import axios from "axios";
 import { sendVerificationEmail, sendResetPasswordEmail } from "../utils/email";
 
 const JWT_SECRET = process.env.JWT_SECRET || "DEFAULT_SECRET";
@@ -52,6 +53,72 @@ export const registerUser = async (userData: any) => {
     sendVerificationEmail(email, otpCode);
   } catch (error: any) {
     throw error;
+  } finally {
+    client.release();
+  }
+};
+
+export const loginWithGoogle = async (accessToken: string) => {
+  const client = await pool.connect();
+  try {
+    // 1. Lấy thông tin người dùng từ Google bằng accessToken
+    const googleRes = await axios.get(
+      "https://www.googleapis.com/oauth2/v3/userinfo",
+      {
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+        },
+      }
+    );
+
+    const { email, name, sub } = googleRes.data; // sub là google_id
+
+    if (!email) throw new Error("Không lấy được email từ Google.");
+
+    // 2. Kiểm tra xem email đã tồn tại trong DB chưa
+    const userCheck = await client.query(
+      "SELECT * FROM Users WHERE email = $1",
+      [email]
+    );
+
+    let user;
+
+    if (userCheck.rows.length > 0) {
+      // 2a. Nếu user đã tồn tại -> Đăng nhập luôn
+      user = userCheck.rows[0];
+    } else {
+      // 2b. Nếu chưa tồn tại -> Tự động đăng ký (User mới)
+      // Tạo mật khẩu ngẫu nhiên để không bị lỗi NOT NULL trong DB
+      const randomPassword = Math.random().toString(36).slice(-8) + "GoOgLe@123";
+      const salt = await bcrypt.genSalt(10);
+      const passwordHash = await bcrypt.hash(randomPassword, salt);
+      
+      // Mặc định user Google sẽ là 'bidder' và đã xác thực (is_verified = TRUE)
+      const newUserRes = await client.query(
+        `INSERT INTO Users (full_name, email, password_hash, user_type, is_verified, address)
+         VALUES ($1, $2, $3, 'bidder', TRUE, 'Google Account')
+         RETURNING *`,
+        [name, email, passwordHash]
+      );
+      
+      user = newUserRes.rows[0];
+    }
+
+    // 3. Tạo JWT Token của hệ thống mình
+    const payload = { id: user.id, user_type: user.user_type };
+    const token = jwt.sign(payload, JWT_SECRET, { expiresIn: "7d" });
+
+    return {
+      token,
+      user: {
+        id: user.id,
+        full_name: user.full_name,
+        email: user.email,
+        user_type: user.user_type,
+      },
+    };
+  } catch (error: any) {
+    throw new Error("Lỗi xác thực Google: " + error.message);
   } finally {
     client.release();
   }

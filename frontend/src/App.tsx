@@ -1,5 +1,5 @@
 // File: frontend/src/App.tsx
-// ✅ Phiên bản chuẩn chỉnh: clean, đúng type, không lỗi JSX / loading
+// ✅ Phiên bản chuẩn chỉnh: clean, đúng type, tích hợp Google OAuth
 
 import {
   BrowserRouter as Router,
@@ -13,6 +13,7 @@ import {
 import { Toaster } from "./components/ui/sonner";
 import { AuthProvider, useAuth } from "./context/AuthContext";
 import type { ReactNode } from "react";
+import { GoogleOAuthProvider } from "@react-oauth/google"; // Import Provider
 
 // Layout & pages
 import { Header } from "./components/Header";
@@ -33,6 +34,10 @@ import { SellerProfilePage } from "./components/SellerProfilePage";
 import { VerifyPage } from "./components/VerifyPage";
 import { ForgotPasswordPage } from "./components/ForgotPasswordPage";
 import { ResetPasswordPage } from "./components/ResetPasswordPage";
+
+// --- CẤU HÌNH GOOGLE CLIENT ID ---
+// Bạn nên để cái này trong file .env (VD: import.meta.env.VITE_GOOGLE_CLIENT_ID)
+const GOOGLE_CLIENT_ID = "1083069827194-a01bkt81soe42hgdog4sp2st0cf7kd2b.apps.googleusercontent.com"; 
 
 // ===============================
 // Main Layout
@@ -131,81 +136,87 @@ const SmartDashboard = () => {
 // ===============================
 export default function App() {
   return (
-    <AuthProvider>
-      <Router>
-        <MainLayout>
-          <Routes>
-            {/* Public */}
-            <Route path="/" element={<HomeWrapper />} />
-            <Route path="/login" element={<LoginWrapper />} />
-            <Route path="/signup" element={<SignupWrapper />} />
-            <Route
-              path="/forgot-password"
-              element={<ForgotPasswordWrapper />}
-            />
-            <Route path="/reset-password" element={<ResetPasswordWrapper />} />
-            <Route path="/verify" element={<VerifyWrapper />} />
+    // Bọc GoogleOAuthProvider ở ngoài cùng hoặc bao quanh Router/AuthProvider
+    <GoogleOAuthProvider clientId={GOOGLE_CLIENT_ID}>
+      <AuthProvider>
+        <Router>
+          <MainLayout>
+            <Routes>
+              {/* Public */}
+              <Route path="/" element={<HomeWrapper />} />
+              <Route path="/login" element={<LoginWrapper />} />
+              <Route path="/signup" element={<SignupWrapper />} />
+              <Route
+                path="/forgot-password"
+                element={<ForgotPasswordWrapper />}
+              />
+              <Route
+                path="/reset-password"
+                element={<ResetPasswordWrapper />}
+              />
+              <Route path="/verify" element={<VerifyWrapper />} />
 
-            {/* Product & Auction */}
-            <Route path="/auction/:id" element={<AuctionWrapper />} />
-            <Route path="/product/:id" element={<ProductWrapper />} />
-            <Route
-              path="/seller-profile/:id"
-              element={<SellerProfileWrapper />}
-            />
+              {/* Product & Auction */}
+              <Route path="/auction/:id" element={<AuctionWrapper />} />
+              <Route path="/product/:id" element={<ProductWrapper />} />
+              <Route
+                path="/seller-profile/:id"
+                element={<SellerProfileWrapper />}
+              />
 
-            {/* Protected */}
-            <Route
-              path="/dashboard"
-              element={
-                <ProtectedRoute>
-                  <SmartDashboard />
-                </ProtectedRoute>
-              }
-            />
+              {/* Protected */}
+              <Route
+                path="/dashboard"
+                element={
+                  <ProtectedRoute>
+                    <SmartDashboard />
+                  </ProtectedRoute>
+                }
+              />
 
-            <Route
-              path="/profile"
-              element={
-                <ProtectedRoute>
-                  <ProfileWrapper />
-                </ProtectedRoute>
-              }
-            />
+              <Route
+                path="/profile"
+                element={
+                  <ProtectedRoute>
+                    <ProfileWrapper />
+                  </ProtectedRoute>
+                }
+              />
 
-            <Route
-              path="/post-product"
-              element={
-                <ProtectedRoute allowedRoles={["seller"]}>
-                  <PostProductWrapper />
-                </ProtectedRoute>
-              }
-            />
+              <Route
+                path="/post-product"
+                element={
+                  <ProtectedRoute allowedRoles={["seller"]}>
+                    <PostProductWrapper />
+                  </ProtectedRoute>
+                }
+              />
 
-            <Route
-              path="/cart"
-              element={
-                <ProtectedRoute>
-                  <CartWrapper />
-                </ProtectedRoute>
-              }
-            />
+              <Route
+                path="/cart"
+                element={
+                  <ProtectedRoute>
+                    <CartWrapper />
+                  </ProtectedRoute>
+                }
+              />
 
-            <Route
-              path="/checkout"
-              element={
-                <ProtectedRoute>
-                  <CheckoutWrapper />
-                </ProtectedRoute>
-              }
-            />
+              <Route
+                path="/checkout"
+                element={
+                  <ProtectedRoute>
+                    <CheckoutWrapper />
+                  </ProtectedRoute>
+                }
+              />
 
-            {/* Fallback */}
-            <Route path="*" element={<Navigate to="/" replace />} />
-          </Routes>
-        </MainLayout>
-      </Router>
-    </AuthProvider>
+              {/* Fallback */}
+              <Route path="*" element={<Navigate to="/" replace />} />
+            </Routes>
+          </MainLayout>
+        </Router>
+      </AuthProvider>
+    </GoogleOAuthProvider>
   );
 }
 

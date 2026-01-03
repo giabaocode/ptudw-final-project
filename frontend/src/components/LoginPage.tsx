@@ -8,6 +8,8 @@ import { useAuth } from "../context/AuthContext";
 import axios from "axios";
 import { toast } from "sonner";
 import { User } from "../types";
+// 1. Import hook useGoogleLogin
+import { useGoogleLogin } from "@react-oauth/google";
 
 interface LoginPageProps {
   onNavigate: (page: string, id?: number) => void;
@@ -18,6 +20,50 @@ export function LoginPage({ onNavigate }: LoginPageProps) {
   const [password, setPassword] = useState("");
   const { login } = useAuth();
 
+  // 2. Khai báo hàm xử lý đăng nhập Google
+  const handleGoogleLogin = useGoogleLogin({
+    onSuccess: async (tokenResponse) => {
+      try {
+        const accessToken = tokenResponse.access_token;
+
+        // Gọi API backend để xác thực token Google
+        const response = await axios.post("/api/auth/google-login", {
+          accessToken,
+        });
+
+        const { token, user } = response.data;
+
+        // Lưu thông tin user vào context
+        login(token, user as User);
+        toast.success(`Đăng nhập thành công! Chào ${user.full_name}`);
+
+        // Điều hướng sau khi đăng nhập thành công
+        const params = new URLSearchParams(window.location.search);
+        const pageParam = params.get("page");
+        const idParam = params.get("id");
+
+        if (pageParam === "auction" && idParam) {
+          onNavigate("auction", Number(idParam));
+        } else {
+          if (user.user_type === "admin") {
+            onNavigate("dashboard");
+          } else {
+            onNavigate("profile");
+          }
+        }
+      } catch (error: any) {
+        console.error("Google Login Error:", error);
+        const errorMessage =
+          error.response?.data?.message || "Đăng nhập Google thất bại.";
+        toast.error(errorMessage);
+      }
+    },
+    onError: () => {
+      toast.error("Kết nối Google thất bại. Vui lòng thử lại.");
+    },
+  });
+
+  // 3. Hàm xử lý đăng nhập thường (giữ nguyên)
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
@@ -37,7 +83,6 @@ export function LoginPage({ onNavigate }: LoginPageProps) {
       const idParam = params.get("id");
 
       if (pageParam === "auction" && idParam) {
-        // Nếu trên URL vẫn còn tham số auction, ưu tiên chuyển về đó
         onNavigate("auction", Number(idParam));
       } else {
         if (user.user_type === "admin") {
@@ -45,9 +90,7 @@ export function LoginPage({ onNavigate }: LoginPageProps) {
         } else {
           onNavigate("profile");
         }
-        onNavigate("profile");
       }
-      // ---------------------
     } catch (error: any) {
       console.error("Login failed:", error);
       const errorMessage =
@@ -116,7 +159,6 @@ export function LoginPage({ onNavigate }: LoginPageProps) {
               </div>
               <button
                 type="button"
-                // Sửa dòng này
                 onClick={() => onNavigate("forgot-password")}
                 className="text-sm text-[#0A84FF] hover:underline font-medium"
               >
@@ -143,8 +185,14 @@ export function LoginPage({ onNavigate }: LoginPageProps) {
             </div>
           </div>
 
-          <div className="grid grid-cols-2 gap-3">
-            <Button variant="outline" type="button" className="font-normal">
+          <div className="grid gap-3">
+            {/* 4. Gắn sự kiện onClick gọi hàm handleGoogleLogin */}
+            <Button 
+              variant="outline" 
+              type="button" 
+              className="font-normal"
+              onClick={() => handleGoogleLogin()}
+            >
               <svg className="w-5 h-5 mr-2" viewBox="0 0 24 24">
                 <path
                   fill="currentColor"
@@ -164,16 +212,6 @@ export function LoginPage({ onNavigate }: LoginPageProps) {
                 />
               </svg>
               Google
-            </Button>
-            <Button variant="outline" type="button" className="font-normal">
-              <svg
-                className="w-5 h-5 mr-2"
-                fill="currentColor"
-                viewBox="0 0 24 24"
-              >
-                <path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z" />
-              </svg>
-              Facebook
             </Button>
           </div>
 
