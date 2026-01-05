@@ -205,13 +205,20 @@ export function ProfilePage({ onNavigate }: ProfilePageProps) {
 
   // 2. Active Bids: Lọc từ API my-bids
   // Logic: Lấy những cái chưa hết hạn HOẶC hết hạn nhưng mình không phải người thắng
-  const activeBids = rawMyBids.filter(
-    (p) =>
-      !(p as any).transaction_status && // Chưa có giao dịch
-      (new Date(p.end_at).getTime() > now ||
-        p.current_highest_bidder_id !== user?.id)
-  );
+const activeBids = rawMyBids.filter((p: any) => {
+    // 1. Loại bỏ những sản phẩm đã thắng (đã có transaction)
+    if (p.transaction_status) return false;
 
+    // 2. Kiểm tra thời gian
+    const endTime = new Date(p.end_at).getTime();
+    
+    // Nếu thời gian kết thúc nhỏ hơn hiện tại -> Đã kết thúc -> Ẩn khỏi tab "Đang đấu"
+    // (Những sản phẩm này là sản phẩm bạn đã THUA hoặc chưa được xử lý thắng)
+    if (endTime <= now) return false;
+
+    // 3. Còn lại là những sản phẩm đang diễn ra
+    return true;
+  });
   const sellingProducts = myProducts.filter(
     (p) => new Date(p.end_at).getTime() > now
   );

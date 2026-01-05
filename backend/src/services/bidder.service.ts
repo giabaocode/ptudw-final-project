@@ -264,32 +264,42 @@ export const getMyWatchList = async (userId: number) => {
 // 4. LẤY DANH SÁCH ĐÃ BID (Sử dụng phiên bản tối ưu từ nhánh Pagination)
 // 4. LẤY DANH SÁCH ĐÃ BID (Gộp tính năng của cả 2 nhánh)
 export const getMyBid = async (userId: number) => {
-  const res = await pool.query(
-    `
-    SELECT p.*, 
-           -- 1. Lấy ảnh đại diện (Từ nhánh pagination)
-           (SELECT image_url FROM Product_Images WHERE product_id = p.id ORDER BY id ASC LIMIT 1) AS image,
-           
-           -- 2. Lấy giá cao nhất MÌNH từng đặt cho món này (Từ nhánh test-2)
-           MAX(b.amount) as my_highest_bid,
-           
-           -- 3. Lấy thời gian lần bid cuối cùng để sắp xếp (Từ nhánh pagination)
-           MAX(b.created_at) as last_bid_time,
-
-           -- 4. Lấy tên người bán (Từ nhánh test-2)
-           u.full_name as seller_name,
-           t.status as transaction_status
-    FROM Bids b
-    JOIN Products p ON b.product_id = p.id
-    JOIN Users u ON p.seller_id = u.id  -- Join thêm bảng Users để lấy tên Seller
-    LEFT JOIN Transactions t ON p.id = t.product_id
+  // Lấy tất cả sản phẩm mà user này từng bid
+  // Sử dụng DISTINCT để tránh trùng lặp nếu user bid nhiều lần vào 1 sản phẩm
+  const query = `
+    SELECT DISTINCT p.*, 
+           (
+             SELECT MAX(amount) 
+             FROM Bids 
+             WHERE product_id = p.id AND bidder_id = $1
+           ) as my_highest_bid,
+           u.full_name as seller_name
+    FROM Products p
+    JOIN Bids b ON p.id = b.product_id
+    JOIN Users u ON p.seller_id = u.id
     WHERE b.bidder_id = $1
-    GROUP BY p.id, u.full_name          -- Group by cả tên seller để không lỗi SQL
-    ORDER BY last_bid_time DESC
-    `,
-    [userId]
-  );
-  return res.rows;
+    ORDER BY p.end_at DESC
+  `;
+
+  const result = await pool.query(query, [userId]);
+  
+  // Xử lý ảnh (nếu lưu dạng chuỗi JSON hoặc mảng)
+  return result.rows.map(row => {
+  // Parse chuỗi JSON nếu database lưu dạng text "[link1, link2]"
+  let images = [];
+  try {
+    images = typeof row.images === 'string' ? JSON.parse(row.images) : row.images;
+  } catch (e) {
+    images = [];
+  }
+
+  return {
+    ...row,
+    images: Array.isArray(images) ? images : [], 
+    // Ưu tiên lấy ảnh đầu tiên trong mảng làm ảnh đại diện
+    image: row.image || (Array.isArray(images) && images[0]) || ""
+  };
+});
 };
 // 5. LẤY DANH SÁCH ĐÃ THẮNG (Từ nhánh Test-2)
 export const getWonAuctions = async (userId: number) => {

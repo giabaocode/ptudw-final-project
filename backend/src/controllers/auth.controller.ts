@@ -58,12 +58,11 @@ export const updateProfile = async (req: Request, res: Response) => {
 export const loginGoogle = async (req: Request, res: Response) => {
   try {
     const { accessToken } = req.body;
-    if (!accessToken) throw new Error("Access Token là bắt buộc.");
-
     const result = await authService.loginWithGoogle(accessToken);
     res.json(result);
   } catch (error: any) {
-    res.status(401).json({ message: error.message });
+    console.error("❌ LỖI BACKEND GOOGLE LOGIN:", error); // THÊM DÒNG NÀY
+    res.status(500).json({ message: error.message });
   }
 };
 

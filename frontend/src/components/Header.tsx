@@ -61,10 +61,11 @@ export function Header({
     setMobileMenuOpen(false);
   };
 
-  useEffect(() => {
+useEffect(() => {
     const fetchCategories = async () => {
       try {
         const response = await axios.get("/api/categories");
+        console.log("Categories Data:", response.data); // <--- Thêm dòng này để kiểm tra
         setCategories(response.data);
       } catch (error) {
         console.error("Failed to fetch categories:", error);
@@ -72,6 +73,8 @@ export function Header({
     };
     fetchCategories();
   }, []);
+
+  
 
   return (
     <header className="bg-white shadow-sm sticky top-0 z-50">
