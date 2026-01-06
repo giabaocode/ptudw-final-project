@@ -1,5 +1,11 @@
 import pool from "../utils/db";
-import { sendKickEmail } from "../utils/email";
+import {
+  sendKickEmail,
+  sendShipmentNotificationEmail,
+  sendDescriptionUpdateEmail,
+} from "../utils/email";
+
+// backend/src/services/seller.service.ts
 
 export const createProduct = async (sellerId: number, productData: any) => {
   const {
@@ -14,14 +20,28 @@ export const createProduct = async (sellerId: number, productData: any) => {
     allow_new_bidders,
   } = productData;
 
+  // 1. Kiểm tra sellerId
+  if (!sellerId) {
+    throw new Error("Thiếu ID người bán (Seller ID). Vui lòng đăng nhập lại.");
+  }
+
   const client = await pool.connect();
 
   try {
     await client.query("BEGIN");
 
+    // 2. Xử lý dữ liệu an toàn (Ép kiểu)
+    const safeCategoryId = Number(category_id);
+    const safeStartPrice = Number(start_price);
+    const safeStepPrice = Number(step_price);
+
+    // Nếu buy_now_price rỗng hoặc = 0 thì coi như là NULL (không có mua ngay)
+    const safeBuyNowPrice = buy_now_price ? Number(buy_now_price) : null;
+
     const finalAllowNewBidders =
       allow_new_bidders !== undefined ? allow_new_bidders : true;
 
+    // 3. Thực hiện Insert
     const productRes = await client.query(
       `INSERT INTO Products 
       (name, category_id, seller_id, start_price, step_price, buy_now_price, current_price, end_at, description, allow_new_bidders)
@@ -29,13 +49,13 @@ export const createProduct = async (sellerId: number, productData: any) => {
       RETURNING id`,
       [
         name,
-        category_id,
+        safeCategoryId,
         sellerId,
-        start_price,
-        step_price,
-        buy_now_price,
-        start_price,
-        end_at,
+        safeStartPrice,
+        safeStepPrice,
+        safeBuyNowPrice,
+        safeStartPrice, // Giá hiện tại = Giá khởi điểm
+        end_at, // Đảm bảo Frontend gửi chuỗi ISO (YYYY-MM-DDTHH:mm:ss...)
         description,
         finalAllowNewBidders,
       ]
@@ -43,35 +63,47 @@ export const createProduct = async (sellerId: number, productData: any) => {
 
     const productId = productRes.rows[0].id;
 
+    // 4. Lưu lịch sử mô tả
     await client.query(
       `INSERT INTO Product_Description_History(product_id, description_text) VALUES ($1, $2)`,
       [productId, description]
     );
 
-    if (images && images.length > 0 && Array.isArray(images)) {
+    // 5. Lưu ảnh (Có kiểm tra kỹ hơn)
+    if (images && Array.isArray(images) && images.length > 0) {
       for (let i = 0; i < images.length; i++) {
-        if (images[i].length > 500) {
-          console.warn("Ảnh quá dài, bỏ qua:", images[i]);
-          continue;
+        const url = images[i];
+
+        // Bỏ qua nếu url không phải chuỗi hoặc rỗng
+        if (typeof url !== "string" || !url.trim()) continue;
+
+        // Cảnh báo nếu URL quá dài (Tùy chỉnh giới hạn cột trong DB của bạn, thường là 255 hoặc TEXT)
+        if (url.length > 2000) {
+          console.warn(
+            `⚠️ Ảnh thứ ${i} quá dài, có thể gây lỗi DB. Độ dài: ${url.length}`
+          );
+          // Nếu cột DB là TEXT thì không sao, nếu là VARCHAR(255) thì sẽ lỗi tại đây
         }
 
         await client.query(
           `INSERT INTO Product_Images (product_id, image_url, is_thumbnail) VALUES ($1, $2, $3)`,
-          [productId, images[i].trim(), i === 0]
+          [productId, url.trim(), i === 0] // Ảnh đầu tiên là thumbnail
         );
       }
     }
+
     await client.query("COMMIT");
+    console.log(`✅ Đã tạo sản phẩm ID: ${productId}`);
     return { product_id: productId };
   } catch (e) {
     await client.query("ROLLBACK");
-    console.error("Lỗi tạo sản phẩm:", e);
+    // In lỗi chi tiết ra Terminal để debug
+    console.error("❌ LỖI TẠO SẢN PHẨM (Chi tiết):", e);
     throw e;
   } finally {
     client.release();
   }
 };
-
 export const getMyProducts = async (sellerId: number) => {
   const res = await pool.query(
     `SELECT p.*, 
@@ -148,6 +180,34 @@ export const appendDescription = async (
       `INSERT INTO Product_Description_History(product_id, description_text) VALUES ($1, $2)`,
       [productId, additionalDescription]
     );
+
+    const productInfo = await client.query(
+      "SELECT name FROM Products WHERE id = $1",
+      [productId]
+    );
+    const productName = productInfo.rows[0]?.name || "Sản phẩm";
+
+    // 2. Lấy danh sách TẤT CẢ những người đã từng bid vào sản phẩm này
+    const biddersRes = await client.query(
+      `SELECT DISTINCT u.email 
+       FROM Bids b
+       JOIN Users u ON b.bidder_id = u.id
+       WHERE b.product_id = $1`,
+      [productId]
+    );
+
+    // 3. Gửi email cho từng người
+    // Dùng Promise.all để gửi song song cho nhanh, không bắt user chờ
+    const emailPromises = biddersRes.rows.map((row) =>
+      sendDescriptionUpdateEmail(
+        row.email,
+        productName,
+        additionalDescription
+      ).catch((err) => console.error(`Lỗi gửi mail tới ${row.email}:`, err))
+    );
+
+    // Không cần await Promise.all nếu muốn phản hồi ngay lập tức cho Seller
+    Promise.all(emailPromises);
 
     await client.query("COMMIT");
   } catch (e) {
@@ -341,6 +401,28 @@ export const confirmShipment = async (userId: number, productId: number) => {
     throw new Error(
       "Lỗi: Đơn hàng chưa được thanh toán hoặc bạn không phải người bán."
     );
+  }
+
+  const transRes = await pool.query(
+    `SELECT t.buyer_id, p.name 
+       FROM Transactions t
+       JOIN Products p ON t.product_id = p.id
+       WHERE t.product_id = $1`,
+    [productId]
+  );
+
+  if (transRes.rows.length > 0) {
+    const buyerId = transRes.rows[0].buyer_id;
+    const productName = transRes.rows[0].name;
+
+    const buyerRes = await pool.query("SELECT email FROM Users WHERE id = $1", [
+      buyerId,
+    ]);
+    if (buyerRes.rows.length > 0) {
+      sendShipmentNotificationEmail(buyerRes.rows[0].email, productName).catch(
+        console.error
+      );
+    }
   }
 
   return { message: "Đã xác nhận gửi hàng." };

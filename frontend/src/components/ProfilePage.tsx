@@ -18,15 +18,12 @@ import {
   Lock,
   ThumbsUp,
   ThumbsDown,
-  ArrowUpCircle,
-  DollarSign,
   X,
   ChevronLeft,
   ChevronRight,
-  Calendar,
   Mail,
   Check,
-  AlertCircle,
+  Clock,
 } from "lucide-react";
 import { Textarea } from "./ui/textarea";
 import { Label } from "./ui/label";
@@ -36,6 +33,7 @@ import { ProductCard } from "./ProductCard";
 import ReactQuill from "react-quill";
 import "react-quill/dist/quill.snow.css";
 import { TransactionModal } from "./TransactionModal";
+
 interface ProfilePageProps {
   onNavigate: (page: string, id?: number) => void;
 }
@@ -88,7 +86,6 @@ export function ProfilePage({ onNavigate }: ProfilePageProps) {
     dob: "",
   });
   const [passForm, setPassForm] = useState({ oldPass: "", newPass: "" });
-  const [isUpgrading, setIsUpgrading] = useState(false);
 
   // Modal
   const [ratingModalOpen, setRatingModalOpen] = useState(false);
@@ -98,7 +95,7 @@ export function ProfilePage({ onNavigate }: ProfilePageProps) {
   );
   const [ratingComment, setRatingComment] = useState("");
 
-  // 👇👇👇 THÊM BỘ STATE MỚI NÀY (CHO SELLER ĐÁNH GIÁ WINNER) 👇👇👇
+  // Seller Rate Winner Modal
   const [rateWinnerModalOpen, setRateWinnerModalOpen] = useState(false);
   const [rateWinnerProduct, setRateWinnerProduct] = useState<any>(null);
   const [rateWinnerScore, setRateWinnerScore] = useState<
@@ -114,7 +111,7 @@ export function ProfilePage({ onNavigate }: ProfilePageProps) {
 
   const [transModalOpen, setTransModalOpen] = useState(false);
   const [selectedTransProduct, setSelectedTransProduct] = useState<any>(null);
-  const [wonProducts, setWonProducts] = useState<Product[]>([]); // <--- THÊM MỚI (Dùng cho tab Đã thắng)
+  const [wonProducts, setWonProducts] = useState<Product[]>([]);
 
   const handleOpenTransaction = (product: any) => {
     setSelectedTransProduct(product);
@@ -168,17 +165,12 @@ export function ProfilePage({ onNavigate }: ProfilePageProps) {
     fetchData();
   }, [token, user]);
 
-  // Thêm useEffect này để khóa scroll body khi mở Modal
   useEffect(() => {
     if (isAppendModalOpen) {
-      // Khi modal mở -> Khóa cuộn + thêm padding bên phải để tránh giật layout (do mất thanh scrollbar)
       document.body.style.overflow = "hidden";
     } else {
-      // Khi modal đóng -> Trả lại trạng thái bình thường
       document.body.style.overflow = "unset";
     }
-
-    // Cleanup function phòng trường hợp component bị hủy đột ngột
     return () => {
       document.body.style.overflow = "unset";
     };
@@ -186,39 +178,26 @@ export function ProfilePage({ onNavigate }: ProfilePageProps) {
 
   useEffect(() => {
     if (!transModalOpen) {
-      // Khi modal đóng, lập tức xóa mọi style khóa màn hình
       setTimeout(() => {
         document.body.style.overflow = "";
         document.body.style.paddingRight = "";
         document.body.style.pointerEvents = "";
-        // Xóa attribute của Radix UI (thủ phạm chính)
         document.body.removeAttribute("data-scroll-locked");
       }, 0);
     }
   }, [transModalOpen]);
 
   const now = new Date().getTime();
-  // 🟢 LOGIC MỚI: Coi là "Đã thắng" nếu:
-  // 1. Có Transaction (Mua ngay sẽ tạo transaction luôn)
-  // 2. HOẶC: Hết giờ VÀ mình là người giữ giá cao nhất
   const wonBids = wonProducts;
 
-  // 2. Active Bids: Lọc từ API my-bids
-  // Logic: Lấy những cái chưa hết hạn HOẶC hết hạn nhưng mình không phải người thắng
-const activeBids = rawMyBids.filter((p: any) => {
-    // 1. Loại bỏ những sản phẩm đã thắng (đã có transaction)
+  // Logic lọc Active Bids (Những cái chưa hết hạn)
+  const activeBids = rawMyBids.filter((p: any) => {
     if (p.transaction_status) return false;
-
-    // 2. Kiểm tra thời gian
     const endTime = new Date(p.end_at).getTime();
-    
-    // Nếu thời gian kết thúc nhỏ hơn hiện tại -> Đã kết thúc -> Ẩn khỏi tab "Đang đấu"
-    // (Những sản phẩm này là sản phẩm bạn đã THUA hoặc chưa được xử lý thắng)
     if (endTime <= now) return false;
-
-    // 3. Còn lại là những sản phẩm đang diễn ra
     return true;
   });
+
   const sellingProducts = myProducts.filter(
     (p) => new Date(p.end_at).getTime() > now
   );
@@ -278,30 +257,21 @@ const activeBids = rawMyBids.filter((p: any) => {
     }
   };
 
-  // src/components/ProfilePage.tsx
-
   const handleRequestUpgrade = async () => {
-    // 👇 SỬA LẠI DÒNG NÀY: Dùng đúng tên "authToken" như trong ảnh của bạn
     const rawToken = localStorage.getItem("authToken");
-
     if (!rawToken) {
-      toast.error("Lỗi: Không tìm thấy token (authToken)!");
+      toast.error("Lỗi: Không tìm thấy token!");
       return;
     }
-
-    // Xử lý xóa dấu ngoặc kép nếu có (đề phòng)
     const token = rawToken.replace(/"/g, "");
-
     try {
       const res = await fetch("/api/admin/request-upgrade", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`, // Gửi token chuẩn
+          Authorization: `Bearer ${token}`,
         },
       });
-
-      // ... (phần xử lý response giữ nguyên) ...
       const data = await res.json();
       if (res.ok) {
         toast.success("Đã gửi yêu cầu thành công!");
@@ -313,37 +283,23 @@ const activeBids = rawMyBids.filter((p: any) => {
     }
   };
 
-  const isQuillEmpty = (value: string) => {
-    if (value.replace(/<(.|\n)*?>/g, "").trim().length === 0) {
-      return true;
-    }
-    return false;
-  };
-
   const handleAppendSubmit = async () => {
-    // 1. Kiểm tra kỹ ID sản phẩm (Chặn lỗi NaN)
     const productId = Number(selectedProductId);
     if (!selectedProductId || isNaN(productId)) {
-      toast.error("Lỗi: Không tìm thấy ID sản phẩm. Vui lòng tải lại trang!");
-      console.error("ID không hợp lệ:", selectedProductId);
+      toast.error("Lỗi: Không tìm thấy ID sản phẩm.");
       return;
     }
-
-    // 2. Kiểm tra nội dung rỗng
     const plainText = appendContent.replace(/<(.|\n)*?>/g, "").trim();
     if (!plainText) {
       toast.error("Vui lòng nhập nội dung!");
       return;
     }
-
     try {
-      // Gửi request với ID đã được kiểm tra chắc chắn là số
       await axios.post(
         `/api/seller/products/${productId}/description`,
         { description: appendContent },
         { headers: { Authorization: `Bearer ${token}` } }
       );
-
       toast.success("Cập nhật thành công!");
       setIsAppendModalOpen(false);
       setAppendContent("");
@@ -352,23 +308,20 @@ const activeBids = rawMyBids.filter((p: any) => {
       toast.error(error.response?.data?.message || "Lỗi cập nhật mô tả.");
     }
   };
-  // 1. Hàm mở Modal (Gắn vào nút bấm)
+
   const handleOpenRateWinner = (product: any) => {
     setRateWinnerProduct(product);
-    setRateWinnerScore("positive"); // Reset về mặc định
-    setRateWinnerComment(""); // Reset comment
-    setRateWinnerModalOpen(true); // Mở modal
+    setRateWinnerScore("positive");
+    setRateWinnerComment("");
+    setRateWinnerModalOpen(true);
   };
 
-  // 2. Hàm Gửi đánh giá (Gắn vào nút Gửi trong Modal)
   const submitRateWinner = async () => {
     if (!rateWinnerProduct) return;
-
     if (!rateWinnerComment.trim()) {
       toast.error("Vui lòng nhập nhận xét!");
       return;
     }
-
     try {
       await axios.post(
         `/api/seller/products/${rateWinnerProduct.id}/rate-winner`,
@@ -376,24 +329,9 @@ const activeBids = rawMyBids.filter((p: any) => {
         { headers: { Authorization: `Bearer ${token}` } }
       );
       toast.success("Đã gửi đánh giá cho người mua!");
-      setRateWinnerModalOpen(false); // Đóng modal
-      // Reload lại data nếu cần thiết (optional)
+      setRateWinnerModalOpen(false);
     } catch (e: any) {
       toast.error(e.response?.data?.message || "Lỗi gửi đánh giá.");
-    }
-  };
-
-  const handleCancelTrans = async (productId: number) => {
-    if (!confirm("Hủy đơn sẽ trừ điểm người thắng. Tiếp tục?")) return;
-    try {
-      await axios.post(
-        `/api/seller/products/${productId}/cancel`,
-        {},
-        { headers: { Authorization: `Bearer ${token}` } }
-      );
-      toast.success("Đã hủy đơn!");
-    } catch (e: any) {
-      toast.error(e.response?.data?.message || "Lỗi.");
     }
   };
 
@@ -443,13 +381,12 @@ const activeBids = rawMyBids.filter((p: any) => {
                     Nâng cấp tài khoản Seller
                   </h4>
                   <p className="text-sm text-yellow-700">
-                    Bạn muốn đăng bán sản phẩm? Hãy gửi yêu cầu để được cấp
-                    quyền bán trong 7 ngày.
+                    Bạn muốn đăng bán sản phẩm? Hãy gửi yêu cầu ngay.
                   </p>
                 </div>
                 <button
                   onClick={handleRequestUpgrade}
-                  className="bg-yellow-600 hover:bg-yellow-700 text-black px-4 py-2 rounded font-bold transition"
+                  className="bg-yellow-600 hover:bg-yellow-700 text-black px-4 py-2 rounded font-bold transition ml-3"
                 >
                   Xin nâng cấp
                 </button>
@@ -467,7 +404,7 @@ const activeBids = rawMyBids.filter((p: any) => {
         </div>
 
         {/* Tabs */}
-        <Tabs defaultValue="won" className="w-full">
+        <Tabs defaultValue="bids" className="w-full">
           <div className="bg-white p-1 rounded-xl shadow-sm border border-gray-200 mb-6 overflow-x-auto">
             <TabsList className="bg-transparent p-0 w-full flex justify-start gap-1 min-w-max">
               <TabsTrigger
@@ -511,7 +448,7 @@ const activeBids = rawMyBids.filter((p: any) => {
             </TabsList>
           </div>
 
-          {/* TAB: ĐÃ THẮNG - CĂN GIỮA (CENTER ALIGN) */}
+          {/* TAB: ĐÃ THẮNG */}
           <TabsContent value="won" className="outline-none">
             <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
               <div className="overflow-x-auto">
@@ -555,7 +492,7 @@ const activeBids = rawMyBids.filter((p: any) => {
                                   {p.name}
                                 </div>
                                 <div className="text-xs text-gray-500 flex items-center gap-1 mt-1">
-                                  <Calendar className="w-3 h-3" />{" "}
+                                  <Clock className="w-3 h-3" />{" "}
                                   {new Date(p.end_at).toLocaleDateString()}
                                 </div>
                               </div>
@@ -570,7 +507,6 @@ const activeBids = rawMyBids.filter((p: any) => {
                             </span>
                           </td>
                           <td className="px-6 py-4 align-middle text-center">
-                            {/* Logic: Nếu trạng thái là received/completed thì hiện Rate, còn lại hiện Quản lý đơn hàng */}
                             {p.transaction_status === "received" ||
                             p.transaction_status === "completed" ? (
                               <Button
@@ -582,7 +518,6 @@ const activeBids = rawMyBids.filter((p: any) => {
                                 <Star className="w-3 h-3 mr-1" /> Đánh giá
                               </Button>
                             ) : (
-                              // Nút Quản lý đơn hàng sẽ mở Modal
                               <Button
                                 size="sm"
                                 className="h-8 bg-blue-600 text-white hover:bg-blue-700"
@@ -619,82 +554,136 @@ const activeBids = rawMyBids.filter((p: any) => {
             </div>
           </TabsContent>
 
-          {/* TAB: ĐANG ĐẤU GIÁ - CĂN CHỈNH */}
+          {/* TAB: ĐANG ĐẤU GIÁ (My Bids) - ĐÃ CHỈNH SỬA CARD VIEW */}
           <TabsContent value="bids" className="outline-none">
-            <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
-              <div className="overflow-x-auto">
-                <table className="w-full min-w-[600px]">
-                  <thead className="bg-gray-50 border-b border-gray-200">
-                    <tr>
-                      <th className="px-6 py-4 text-left text-xs font-bold text-gray-500 uppercase tracking-wider">
-                        Sản phẩm
-                      </th>
-                      <th className="px-6 py-4 text-right text-xs font-bold text-gray-500 uppercase tracking-wider">
-                        Giá hiện tại
-                      </th>
-                      <th className="px-6 py-4 text-right text-xs font-bold text-gray-500 uppercase tracking-wider">
-                        Giá bạn đặt
-                      </th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-gray-100">
-                    {activeBids.length > 0 ? (
-                      paginate(activeBids, pageBids).map((p) => (
-                        <tr
-                          key={p.id}
-                          className="hover:bg-gray-50 transition-colors cursor-pointer"
-                          onClick={() => onNavigate("auction", p.id)}
+            {activeBids.length > 0 ? (
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+                {paginate(activeBids, pageBids).map((item) => {
+                  const isWinning = item.current_highest_bidder_id === user?.id;
+
+                  return (
+                    <div
+                      key={item.id}
+                      className={`relative bg-white rounded-xl overflow-hidden shadow-sm transition-all hover:shadow-md border-2 ${
+                        isWinning
+                          ? "border-green-500/50"
+                          : "border-red-500/50 hover:border-red-500"
+                      }`}
+                    >
+                      {/* --- BADGE TRẠNG THÁI --- */}
+                      <div className="absolute top-3 right-3 z-10">
+                        {isWinning ? (
+                          <span className="bg-green-100 text-green-700 border border-green-500 text-xs px-3 py-1 rounded-full font-bold shadow-sm flex items-center gap-1.5 animate-in fade-in">
+                            <span className="relative flex h-2 w-2">
+                              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75"></span>
+                              <span className="relative inline-flex rounded-full h-2 w-2 bg-green-500"></span>
+                            </span>
+                            Đang dẫn đầu
+                          </span>
+                        ) : (
+                          <span className="bg-red-100 text-red-700 border border-red-500 text-xs px-3 py-1 rounded-full font-bold shadow-sm flex items-center gap-1.5">
+                            <span className="w-2 h-2 bg-red-500 rounded-full"></span>
+                            ⚠️ Bị vượt giá
+                          </span>
+                        )}
+                      </div>
+
+                      {/* --- ẢNH SẢN PHẨM --- */}
+                      <div className="relative h-48 w-full bg-gray-100">
+                        <ImageWithFallback
+                          src={item.image || ""}
+                          className="h-full w-full object-cover transition-transform duration-500 hover:scale-105"
+                        />
+                        {/* Overlay đỏ nếu bị vượt giá */}
+                        {!isWinning && (
+                          <div className="absolute inset-0 bg-red-500/10 pointer-events-none" />
+                        )}
+                      </div>
+
+                      {/* --- NỘI DUNG --- */}
+                      <div className="p-4 flex flex-col h-[calc(100%-12rem)]">
+                        <h3
+                          className="font-bold text-gray-900 line-clamp-1 text-lg mb-3"
+                          title={item.name}
                         >
-                          <td className="px-6 py-4 align-middle">
-                            <div className="flex items-center gap-4">
-                              <div className="w-12 h-12 rounded border bg-gray-100 overflow-hidden shrink-0">
-                                <ImageWithFallback
-                                  src={p.image || ""}
-                                  className="w-full h-full object-cover"
-                                />
-                              </div>
-                              <div className="min-w-0">
-                                <div className="font-semibold text-gray-900 truncate max-w-[250px]">
-                                  {p.name}
-                                </div>
-                                <span className="text-[10px] bg-blue-100 text-blue-700 px-2 py-0.5 rounded mt-1 inline-block">
-                                  Đang diễn ra
-                                </span>
-                              </div>
-                            </div>
-                          </td>
-                          <td className="px-6 py-4 align-middle text-right font-bold text-gray-900">
-                            ${Number(p.current_price).toLocaleString()}
-                          </td>
-                          <td className="px-6 py-4 align-middle text-right font-medium text-blue-600">
-                            $
-                            {Number(
-                              (p as any).my_highest_bid || 0
-                            ).toLocaleString()}
-                          </td>
-                        </tr>
-                      ))
-                    ) : (
-                      <tr>
-                        <td
-                          colSpan={3}
-                          className="px-6 py-12 text-center text-gray-500"
-                        >
-                          Không có sản phẩm đang đấu giá.
-                        </td>
-                      </tr>
-                    )}
-                  </tbody>
-                </table>
+                          {item.name}
+                        </h3>
+
+                        <div className="space-y-2 text-sm flex-grow">
+                          <div className="flex justify-between items-center bg-gray-50 p-2 rounded">
+                            <span className="text-gray-500">Giá hiện tại:</span>
+                            <span
+                              className={`font-bold text-base ${
+                                isWinning ? "text-green-600" : "text-red-600"
+                              }`}
+                            >
+                              {Number(item.current_price).toLocaleString()} VNĐ
+                            </span>
+                          </div>
+
+                          <div className="flex justify-between items-center px-2">
+                            <span className="text-gray-500">
+                              Giá bạn đặt max:
+                            </span>
+                            <span className="font-medium text-gray-900">
+                              {Number(
+                                (item as any).my_highest_bid || 0
+                              ).toLocaleString()}{" "}
+                              VNĐ
+                            </span>
+                          </div>
+
+                          <div className="flex justify-between items-center px-2">
+                            <span className="text-gray-500">Kết thúc:</span>
+                            <span className="text-orange-600 font-medium flex items-center gap-1">
+                              <Clock className="w-3 h-3" />
+                              {new Date(item.end_at).toLocaleDateString(
+                                "vi-VN"
+                              )}
+                            </span>
+                          </div>
+                        </div>
+
+                        {/* --- BUTTONS ACTION --- */}
+                        <div className="pt-4 mt-2 border-t border-gray-100">
+                          {!isWinning ? (
+                            <Button
+                              variant="destructive"
+                              className="w-full bg-red-600 hover:bg-red-700 text-white font-bold shadow-red-200 shadow-lg transition-all transform hover:-translate-y-0.5"
+                              onClick={() => onNavigate("auction", item.id)}
+                            >
+                              🔥 Đấu giá lại ngay
+                            </Button>
+                          ) : (
+                            <Button
+                              variant="outline"
+                              className="w-full border-green-500 text-green-600 hover:bg-green-50 font-medium"
+                              onClick={() => onNavigate("auction", item.id)}
+                            >
+                              Xem chi tiết
+                            </Button>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
               </div>
-              {activeBids.length > ITEMS_PER_PAGE && (
+            ) : (
+              <div className="py-16 text-center text-gray-500 bg-white rounded-xl border border-dashed border-gray-200">
+                Không có sản phẩm đang đấu giá.
+              </div>
+            )}
+
+            {activeBids.length > ITEMS_PER_PAGE && (
+              <div className="mt-6">
                 <PaginationBar
                   currentPage={pageBids}
                   totalItems={activeBids.length}
                   onPageChange={setPageBids}
                 />
-              )}
-            </div>
+              </div>
+            )}
           </TabsContent>
 
           {/* TAB: WATCHLIST */}
@@ -776,7 +765,7 @@ const activeBids = rawMyBids.filter((p: any) => {
             </div>
           </TabsContent>
 
-          {/* TAB: SETTINGS (INPUT VIỀN RÕ RÀNG) */}
+          {/* TAB: SETTINGS */}
           <TabsContent value="settings" className="outline-none">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
               <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-200">
@@ -879,6 +868,7 @@ const activeBids = rawMyBids.filter((p: any) => {
             </div>
           </TabsContent>
 
+          {/* TAB: KHO HÀNG (SELLER) */}
           {user?.user_type === "seller" && (
             <TabsContent
               value="my-products"
@@ -892,7 +882,6 @@ const activeBids = rawMyBids.filter((p: any) => {
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
                   {myProducts.map((p) => (
                     <div key={p.id} className="relative group">
-                      {/* 1. Hiển thị Card sản phẩm như cũ */}
                       <ProductCard
                         {...p}
                         price={Number(p.current_price)}
@@ -900,29 +889,14 @@ const activeBids = rawMyBids.filter((p: any) => {
                         image={p.image || (p.images && p.images[0]) || ""}
                         onViewDetails={(id) => onNavigate("auction", id)}
                       />
-
-                      {/* 2. Thêm nút bấm Bổ sung mô tả ngay bên dưới */}
-                      {/* Thay thế nút Button cũ bằng đoạn này */}
                       <Button
                         variant="secondary"
                         className="w-full mt-2 border-dashed border-2 border-blue-200 text-blue-700 hover:bg-blue-50"
                         onClick={(e: any) => {
-                          e.stopPropagation(); // Ngăn sự kiện click bị lan ra ngoài (quan trọng)
-
-                          // --- LOG DEBUG ---
-                          console.log("Check sản phẩm:", p);
-
-                          // Kiểm tra xem p.id có tồn tại không
+                          e.stopPropagation();
                           const idToCheck =
                             p.id || (p as any).product_id || (p as any)._id;
-
-                          if (!idToCheck) {
-                            alert("Lỗi dữ liệu: Sản phẩm này không có ID!");
-                            console.error("ID bị thiếu trong object:", p);
-                            return;
-                          }
-
-                          // Cập nhật State
+                          if (!idToCheck) return;
                           setSelectedProductId(Number(idToCheck));
                           setIsAppendModalOpen(true);
                         }}
@@ -931,7 +905,6 @@ const activeBids = rawMyBids.filter((p: any) => {
                       </Button>
                     </div>
                   ))}
-
                   {sellingProducts.length === 0 && (
                     <p className="col-span-full text-center text-gray-500 py-8 bg-gray-50 rounded-xl">
                       Không có sản phẩm đang bán.
@@ -973,7 +946,6 @@ const activeBids = rawMyBids.filter((p: any) => {
                         </div>
                       </div>
                       <div className="mt-3">
-                        {/* Logic hiển thị nút theo trạng thái giao dịch */}
                         {(p as any).transaction_status === "received" ||
                         (p as any).transaction_status === "completed" ? (
                           <Button
@@ -1006,7 +978,7 @@ const activeBids = rawMyBids.filter((p: any) => {
         </Tabs>
       </div>
 
-      {/* --- FIXED PORTAL MODAL (CĂN GIỮA TUYỆT ĐỐI) --- */}
+      {/* --- MODALs --- */}
       {ratingModalOpen &&
         createPortal(
           <div
@@ -1108,61 +1080,28 @@ const activeBids = rawMyBids.filter((p: any) => {
       {isAppendModalOpen &&
         createPortal(
           <div
-            className="
-        fixed inset-0 z-[99999] flex items-center justify-center
-        bg-black/60 backdrop-blur-sm p-4
-      "
+            className="fixed inset-0 z-[99999] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4"
             style={{ position: "fixed", top: 0, left: 0, bottom: 0, right: 0 }}
           >
-            {/* Click ra ngoài để đóng */}
             <div
               className="fixed inset-0"
               onClick={() => setIsAppendModalOpen(false)}
             ></div>
-
-            {/* MODAL WRAPPER */}
-            <div
-              className="
-          relative z-10 bg-white w-full max-w-md rounded-xl shadow-2xl
-          border border-gray-1200
-          overflow-hidden flex flex-col
-          animate-in zoom-in-95 duration-200
-        "
-            >
-              {/* HEADER */}
-              <div
-                className="
-            flex items-center justify-between
-            px-5 py-4 bg-gray-50 border-b border-gray-100
-          "
-              >
+            <div className="relative z-10 bg-white w-full max-w-md rounded-xl shadow-2xl border border-gray-1200 overflow-hidden flex flex-col animate-in zoom-in-95 duration-200">
+              <div className="flex items-center justify-between px-5 py-4 bg-gray-50 border-b border-gray-100">
                 <h3 className="text-gray-800 font-bold">Bổ sung mô tả</h3>
-
                 <button
                   onClick={() => setIsAppendModalOpen(false)}
-                  className="
-              p-1 rounded text-gray-400 hover:text-red-500
-              hover:bg-red-50 transition-all
-            "
+                  className="p-1 rounded text-gray-400 hover:text-red-500 hover:bg-red-50 transition-all"
                 >
                   <X className="w-5 h-5" />
                 </button>
               </div>
-
-              {/* BODY */}
               <div className="p-5 bg-white space-y-3">
                 <Label className="text-sm font-semibold text-gray-700">
                   Nội dung chi tiết
                 </Label>
-
-                {/* Quill Editor Wrapper */}
-                <div
-                  className="
-              h-40 border border-gray-300 rounded-md overflow-hidden
-              focus-within:ring-2 focus-within:ring-blue-100
-              transition-all
-            "
-                >
+                <div className="h-40 border border-gray-300 rounded-md overflow-hidden focus-within:ring-2 focus-within:ring-blue-100 transition-all">
                   <ReactQuill
                     theme="snow"
                     value={appendContent}
@@ -1177,19 +1116,11 @@ const activeBids = rawMyBids.filter((p: any) => {
                     }}
                   />
                 </div>
-
                 <p className="text-xs text-right text-gray-400 italic">
                   *Nội dung sẽ được thêm vào cuối mô tả hiện tại
                 </p>
               </div>
-
-              {/* FOOTER */}
-              <div
-                className="
-            px-5 py-4 bg-gray-50 border-t border-gray-100
-            flex justify-end gap-3
-          "
-              >
+              <div className="px-5 py-4 bg-gray-50 border-t border-gray-100 flex justify-end gap-3">
                 <Button
                   variant="outline"
                   onClick={() => setIsAppendModalOpen(false)}
@@ -1197,14 +1128,9 @@ const activeBids = rawMyBids.filter((p: any) => {
                 >
                   Hủy bỏ
                 </Button>
-
                 <Button
                   onClick={handleAppendSubmit}
-                  className="
-              h-9 px-4 text-sm font-bold
-              bg-blue-600 hover:bg-blue-700
-              text-black shadow-md
-            "
+                  className="h-9 px-4 text-sm font-bold bg-blue-600 hover:bg-blue-700 text-black shadow-md"
                 >
                   Xác nhận
                 </Button>
@@ -1213,7 +1139,6 @@ const activeBids = rawMyBids.filter((p: any) => {
           </div>,
           document.body
         )}
-      {/* --- MODAL: SELLER ĐÁNH GIÁ WINNER --- */}
       {rateWinnerModalOpen &&
         createPortal(
           <div
@@ -1232,7 +1157,6 @@ const activeBids = rawMyBids.filter((p: any) => {
             }}
           >
             <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden relative border border-gray-100 animate-in fade-in zoom-in duration-200 m-4">
-              {/* Header */}
               <div className="flex justify-between items-center p-5 border-b bg-gray-50">
                 <h3 className="font-bold text-xl text-gray-800">
                   Đánh giá Người mua
@@ -1244,8 +1168,6 @@ const activeBids = rawMyBids.filter((p: any) => {
                   <X className="w-6 h-6" />
                 </button>
               </div>
-
-              {/* Body */}
               <div className="p-6 space-y-6">
                 {rateWinnerProduct && (
                   <div className="text-center pb-4 border-b border-gray-100">
@@ -1260,7 +1182,6 @@ const activeBids = rawMyBids.filter((p: any) => {
                     </p>
                   </div>
                 )}
-
                 <div className="space-y-3">
                   <Label className="text-base font-semibold text-gray-800">
                     Mức độ hài lòng
@@ -1288,7 +1209,6 @@ const activeBids = rawMyBids.filter((p: any) => {
                     </div>
                   </div>
                 </div>
-
                 <div className="space-y-2">
                   <Label className="text-base font-semibold text-gray-800">
                     Nhận xét
@@ -1301,8 +1221,6 @@ const activeBids = rawMyBids.filter((p: any) => {
                   />
                 </div>
               </div>
-
-              {/* Footer */}
               <div className="p-5 bg-gray-50 border-t flex justify-end gap-3">
                 <Button
                   variant="outline"
@@ -1322,8 +1240,6 @@ const activeBids = rawMyBids.filter((p: any) => {
           </div>,
           document.body
         )}
-      {/* --- TRANSACTION MODAL (Sử dụng Portal) --- */}
-      {/* --- TRANSACTION MODAL (Chuẩn Shadcn) --- */}
       {transModalOpen && selectedTransProduct && (
         <TransactionModal
           isOpen={transModalOpen}

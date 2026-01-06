@@ -10,7 +10,6 @@ import {
 import { Button } from "./ui/button";
 import { Input } from "./ui/input";
 import { Label } from "./ui/label";
-import { RadioGroup, RadioGroupItem } from "./ui/radio-group";
 import { useState } from "react";
 import axios from "axios";
 import { toast } from "sonner";
@@ -31,7 +30,7 @@ export function SignupPage({ onNavigate }: SignupPageProps) {
 
   // State cho Captcha
   const [isNotRobot, setIsNotRobot] = useState(false);
-  const [isVerifying, setIsVerifying] = useState(false); // State đang xoay
+  const [isVerifying, setIsVerifying] = useState(false);
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target;
@@ -40,17 +39,15 @@ export function SignupPage({ onNavigate }: SignupPageProps) {
 
   // --- HÀM XỬ LÝ CLICK CAPTCHA ---
   const handleCaptchaClick = () => {
-    if (isNotRobot || isVerifying) return; // Nếu đã tick hoặc đang xoay thì không làm gì
+    if (isNotRobot || isVerifying) return;
 
-    setIsVerifying(true); // Bắt đầu xoay
+    setIsVerifying(true);
 
-    // Giả lập delay 1.5 giây sau đó hiện dấu tick
     setTimeout(() => {
-      setIsVerifying(false); // Dừng xoay
-      setIsNotRobot(true); // Hiện dấu tick
+      setIsVerifying(false);
+      setIsNotRobot(true);
     }, 1500);
   };
-  // ------------------------------
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -76,18 +73,11 @@ export function SignupPage({ onNavigate }: SignupPageProps) {
 
       await axios.post("/api/auth/register", payload);
 
-      // --- [SỬA TẠI ĐÂY] ---
-      // Thay vì báo thành công, chỉ báo đã gửi mã
       toast.info("Mã xác thực đã được gửi đến email của bạn.");
-      // ---------------------
 
-      // --- [SỬA ĐOẠN NÀY] ---
-      // 1. Lưu email để trang Verify biết là đang xác thực cho ai
       localStorage.setItem("registrationEmail", formData.email);
 
-      // 2. Chuyển hướng sang trang Verify (thay vì login)
       onNavigate("verify");
-      // ---------------------
     } catch (error: any) {
       console.error("Signup failed:", error);
       const errorMessage = error.response?.data?.message || "Đăng ký thất bại.";
@@ -104,16 +94,16 @@ export function SignupPage({ onNavigate }: SignupPageProps) {
               <span className="text-2xl text-white font-bold">AB</span>
             </div>
             <h1 className="text-3xl text-gray-900 font-bold mb-2">
-              Create Account
+              Tạo tài khoản mới
             </h1>
             <p className="text-gray-600">
-              Join AuctionBay to start buying or selling
+              Tham gia AuctionBay để bắt đầu mua sắm và kinh doanh
             </p>
           </div>
 
           <div className="mb-6">
             <Label className="mb-3 block text-sm font-medium text-gray-700">
-              Account Type
+              Bạn là
             </Label>
             <div className="grid grid-cols-2 gap-4">
               <label
@@ -141,7 +131,7 @@ export function SignupPage({ onNavigate }: SignupPageProps) {
                     accountType === "buyer" ? "text-[#0A84FF]" : "text-gray-700"
                   }`}
                 >
-                  Buyer
+                  Người mua
                 </span>
               </label>
 
@@ -174,7 +164,7 @@ export function SignupPage({ onNavigate }: SignupPageProps) {
                       : "text-gray-700"
                   }`}
                 >
-                  Seller
+                  Người bán
                 </span>
               </label>
             </div>
@@ -182,14 +172,14 @@ export function SignupPage({ onNavigate }: SignupPageProps) {
 
           <form onSubmit={handleSubmit} className="space-y-4">
             <div>
-              <Label htmlFor="name">Full Name</Label>
+              <Label htmlFor="name">Họ và tên</Label>
               <div className="relative mt-2">
                 <UserIcon className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-gray-400" />
                 <Input
                   id="name"
                   name="name"
                   type="text"
-                  placeholder="John Doe"
+                  placeholder="Nguyễn Văn A"
                   className="pl-10"
                   value={formData.name}
                   onChange={handleChange}
@@ -199,14 +189,14 @@ export function SignupPage({ onNavigate }: SignupPageProps) {
             </div>
 
             <div>
-              <Label htmlFor="email">Email Address</Label>
+              <Label htmlFor="email">Địa chỉ Email</Label>
               <div className="relative mt-2">
                 <Mail className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-gray-400" />
                 <Input
                   id="email"
                   name="email"
                   type="email"
-                  placeholder="you@example.com"
+                  placeholder="nguoidung@vidu.com"
                   className="pl-10"
                   value={formData.email}
                   onChange={handleChange}
@@ -216,14 +206,14 @@ export function SignupPage({ onNavigate }: SignupPageProps) {
             </div>
 
             <div>
-              <Label htmlFor="address">Address</Label>
+              <Label htmlFor="address">Địa chỉ liên hệ</Label>
               <div className="relative mt-2">
                 <MapPin className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-gray-400" />
                 <Input
                   id="address"
                   name="address"
                   type="text"
-                  placeholder="123 Main St, City"
+                  placeholder="Số 123, Đường ABC, TP.HCM"
                   className="pl-10"
                   value={formData.address}
                   onChange={handleChange}
@@ -233,14 +223,14 @@ export function SignupPage({ onNavigate }: SignupPageProps) {
             </div>
 
             <div>
-              <Label htmlFor="password">Password</Label>
+              <Label htmlFor="password">Mật khẩu</Label>
               <div className="relative mt-2">
                 <Lock className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-gray-400" />
                 <Input
                   id="password"
                   name="password"
                   type="password"
-                  placeholder="Create a password"
+                  placeholder="Tạo mật khẩu của bạn"
                   className="pl-10"
                   value={formData.password}
                   onChange={handleChange}
@@ -250,14 +240,14 @@ export function SignupPage({ onNavigate }: SignupPageProps) {
             </div>
 
             <div>
-              <Label htmlFor="confirmPassword">Confirm Password</Label>
+              <Label htmlFor="confirmPassword">Xác nhận mật khẩu</Label>
               <div className="relative mt-2">
                 <Lock className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-gray-400" />
                 <Input
                   id="confirmPassword"
                   name="confirmPassword"
                   type="password"
-                  placeholder="Confirm your password"
+                  placeholder="Nhập lại mật khẩu"
                   className="pl-10"
                   value={formData.confirmPassword}
                   onChange={handleChange}
@@ -266,10 +256,9 @@ export function SignupPage({ onNavigate }: SignupPageProps) {
               </div>
             </div>
 
-            {/* --- CAPTCHA MỚI (ANIMATION MƯỢT) --- */}
+            {/* --- CAPTCHA VIỆT HÓA --- */}
             <div className="flex justify-center pt-4">
               <div className="flex items-center p-3 bg-[#f9f9f9] border border-[#d3d3d3] rounded-[3px] w-fit min-w-[300px] shadow-[0_0_4px_1px_rgba(0,0,0,0.08)] select-none hover:bg-[#f0f0f0] transition-colors">
-                {/* Ô CHECKBOX */}
                 <div
                   onClick={handleCaptchaClick}
                   className={`
@@ -282,26 +271,23 @@ export function SignupPage({ onNavigate }: SignupPageProps) {
                         `}
                 >
                   {isVerifying ? (
-                    // 1. Spinner xoay mượt (dùng class mới animate-spin-smooth)
                     <Loader2
                       className="w-6 h-6 text-[#0A84FF] animate-spin-smooth"
                       strokeWidth={2.5}
                     />
                   ) : isNotRobot ? (
-                    // 2. Dấu tick nảy ra (dùng animate-pop)
                     <Check
                       className="w-7 h-7 text-[#009900] animate-pop"
                       strokeWidth={3}
                     />
-                  ) : // 3. Trạng thái chưa bấm
-                  null}
+                  ) : null}
                 </div>
 
                 <label
                   onClick={handleCaptchaClick}
                   className="text-[14px] font-normal text-black cursor-pointer flex-1"
                 >
-                  I'm not a robot
+                  Tôi không phải là người máy
                 </label>
 
                 <div className="flex flex-col items-center justify-center ml-4">
@@ -314,7 +300,7 @@ export function SignupPage({ onNavigate }: SignupPageProps) {
                     reCAPTCHA
                   </span>
                   <div className="text-[8px] text-gray-400 flex gap-1">
-                    <span>Privacy</span>-<span>Terms</span>
+                    <span>Bảo mật</span>-<span>Điều khoản</span>
                   </div>
                 </div>
               </div>
@@ -323,31 +309,32 @@ export function SignupPage({ onNavigate }: SignupPageProps) {
 
             <Button
               type="submit"
-              className="w-full bg-[#0A84FF] hover:bg-[#0A84FF]/90 mt-6 h-11 text-base"
+              className="w-full bg-[#0A84FF] hover:bg-[#0A84FF]/90 mt-6 h-11 text-base font-medium"
             >
-              Create Account
+              Đăng ký tài khoản
             </Button>
           </form>
 
           <p className="text-xs text-center text-gray-500 mt-4">
-            By signing up, you agree to our{" "}
+            Bằng việc đăng ký, bạn đồng ý với{" "}
             <a href="#" className="text-[#0A84FF] hover:underline">
-              Terms of Service
+              Điều khoản dịch vụ
             </a>{" "}
-            and{" "}
+            và{" "}
             <a href="#" className="text-[#0A84FF] hover:underline">
-              Privacy Policy
-            </a>
+              Chính sách bảo mật
+            </a>{" "}
+            của chúng tôi.
           </p>
 
           <p className="text-center text-sm text-gray-600 mt-6">
-            Already have an account?{" "}
+            Bạn đã có tài khoản?{" "}
             <button
               type="button"
               onClick={() => onNavigate("login")}
               className="text-[#0A84FF] hover:underline font-medium"
             >
-              Sign in
+              Đăng nhập ngay
             </button>
           </p>
         </div>

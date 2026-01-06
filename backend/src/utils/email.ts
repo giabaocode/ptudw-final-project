@@ -154,21 +154,43 @@ export const sendQuestionNotificationEmail = async (
 };
 
 // --- 1. Gửi email khi bị vượt mặt (Outbid) ---
+// backend/src/utils/email.ts
+
 export const sendOutbidEmail = async (
   to: string,
   productName: string,
-  newPrice: number
+  newPrice: number,
+  productLink: string // 👈 THÊM THAM SỐ NÀY
 ) => {
-  const subject = `[AuctionBay] Cảnh báo: Bạn đã bị vượt giá sản phẩm "${productName}"`;
+  const subject = `[CẢNH BÁO] Bạn đã bị vượt giá sản phẩm "${productName}" ⚠️`;
+
   const html = `
-    <div style="font-family: Arial, sans-serif; padding: 20px; border: 1px solid #ddd;">
-      <h2 style="color: #d4183d;">Bạn đã bị vượt mặt!</h2>
+    <div style="font-family: Arial, sans-serif; padding: 20px; border: 1px solid #ddd; max-width: 600px; margin: 0 auto;">
+      <h2 style="color: #d4183d;">⚠️ Bạn không còn dẫn đầu nữa!</h2>
+      
       <p>Xin chào,</p>
-      <p>Một người dùng khác vừa đặt giá cao hơn cho sản phẩm <strong>${productName}</strong>.</p>
-      <p>Giá hiện tại: <strong style="color: #0A84FF; font-size: 18px;">${newPrice.toLocaleString()} VNĐ</strong></p>
-      <p>Hãy quay lại ngay để đặt giá mới nếu bạn vẫn muốn sở hữu sản phẩm này!</p>
+      <p>Có người vừa đặt giá cao hơn bạn cho sản phẩm <strong>"${productName}"</strong>.</p>
+      
+      <div style="background-color: #fff1f2; padding: 15px; border-radius: 5px; border: 1px solid #fda4af; margin: 15px 0;">
+        <p style="margin: 0; color: #9f1239;">Giá hiện tại: <strong>${newPrice.toLocaleString(
+          "vi-VN"
+        )} VNĐ</strong></p>
+      </div>
+
+      <p>Đừng để mất món đồ yêu thích này. Hãy ra giá lại ngay!</p>
+
+      <div style="text-align: center; margin: 30px 0;">
+        <a href="${productLink}" 
+           style="background-color: #d4183d; color: white; padding: 12px 25px; text-decoration: none; border-radius: 5px; font-weight: bold; font-size: 16px;">
+           🔨 Đấu giá lại ngay
+        </a>
+      </div>
+      
+      <p style="font-size: 12px; color: #888;">Nếu nút trên không hoạt động, hãy copy link sau vào trình duyệt:</p>
+      <p style="font-size: 12px; color: #0A84FF;">${productLink}</p>
     </div>
   `;
+
   return sendMail(to, subject, html);
 };
 
@@ -210,18 +232,55 @@ export const sendSellerEndEmail = async (
   hasWinner: boolean,
   price?: number
 ) => {
-  const subject = `[AuctionBay] Kết thúc đấu giá: "${productName}"`;
+  const subject = `[AuctionBay] Kết quả đấu giá: "${productName}"`;
+
+  // 1. Xử lý hiển thị giá tiền an toàn
+  // Nếu có giá thì format kiểu VN (ví dụ: 10.000.000), nếu không có thì để 0
+  const priceString = price ? price.toLocaleString("vi-VN") : "0";
+
   const html = `
-    <div style="font-family: Arial, sans-serif; padding: 20px; border: 1px solid #ddd;">
-      <h2 style="color: #0A84FF;">Phiên đấu giá đã kết thúc</h2>
-      <p>Sản phẩm <strong>${productName}</strong> của bạn đã hết giờ.</p>
+    <div style="font-family: Arial, sans-serif; padding: 20px; border: 1px solid #e5e7eb; max-width: 600px; margin: 0 auto; border-radius: 8px;">
+      <h2 style="color: #0A84FF; margin-bottom: 15px;">Thông báo kết thúc đấu giá 🔔</h2>
+      
+      <p>Xin chào,</p>
+      <p>Thời gian đấu giá cho sản phẩm <strong>"${productName}"</strong> của bạn đã kết thúc.</p>
+
       ${
         hasWinner
-          ? `<p style="color: green;">✅ <strong>Đã có người mua!</strong> Giá chốt: ${price?.toLocaleString()} VNĐ. Vui lòng chờ người mua thanh toán.</p>`
-          : `<p style="color: red;">❌ <strong>Không có người mua.</strong> Rất tiếc, không ai ra giá cho sản phẩm này.</p>`
+          ? `
+          <div style="background-color: #f0fdf4; border: 1px solid #bbf7d0; padding: 20px; border-radius: 8px; margin: 20px 0;">
+             <p style="color: #15803d; font-size: 18px; font-weight: bold; margin: 0 0 10px 0;">🎉 Chúc mừng! Đã bán thành công.</p>
+             
+             <p style="margin: 0; font-size: 15px;">
+                Giá chốt cuối cùng: 
+                <strong style="color: #d4183d; font-size: 20px;">${priceString} VNĐ</strong>
+             </p>
+             
+             <p style="margin-top: 15px; font-size: 14px; color: #555;">
+                Vui lòng truy cập <a href="${
+                  process.env.FRONTEND_URL || "http://localhost:3000"
+                }/dashboard" style="color: #0A84FF; text-decoration: none;">Trang quản lý</a> để xem thông tin người mua và tiến hành giao hàng.
+             </p>
+          </div>
+          `
+          : `
+          <div style="background-color: #fef2f2; border: 1px solid #fecaca; padding: 20px; border-radius: 8px; margin: 20px 0;">
+             <p style="color: #b91c1c; font-size: 18px; font-weight: bold; margin: 0 0 10px 0;">❌ Không có người mua</p>
+             <p style="margin: 0; font-size: 14px; color: #555;">
+                Rất tiếc, phiên đấu giá đã kết thúc mà không có lượt ra giá nào.
+             </p>
+             <p style="margin-top: 10px; font-size: 14px; color: #555;">
+                Bạn có thể đăng bán lại sản phẩm này bất cứ lúc nào.
+             </p>
+          </div>
+          `
       }
+
+      <hr style="border: 0; border-top: 1px solid #eee; margin: 20px 0;" />
+      <p style="font-size: 12px; color: #888;">Cảm ơn bạn đã sử dụng AuctionBay.</p>
     </div>
   `;
+
   return sendMail(to, subject, html);
 };
 
@@ -261,4 +320,77 @@ const sendMail = async (to: string, subject: string, html: string) => {
   } catch (error) {
     console.error(`❌ Lỗi gửi mail tới ${to}:`, error);
   }
+};
+
+// --- 6. Gửi email thông báo Buyer đã thanh toán (Gửi cho Seller) ---
+export const sendPaymentNotificationEmail = async (
+  to: string,
+  productName: string,
+  buyerName: string
+) => {
+  const subject = `[AuctionBay] Người mua đã thanh toán cho sản phẩm "${productName}"`;
+  const html = `
+    <div style="font-family: Arial, sans-serif; padding: 20px; border: 1px solid #ddd;">
+      <h2 style="color: #0A84FF;">Xác nhận thanh toán</h2>
+      <p>Xin chào,</p>
+      <p>Người mua <strong>${buyerName}</strong> đã gửi bằng chứng thanh toán cho sản phẩm <strong>${productName}</strong>.</p>
+      <p>Vui lòng truy cập trang quản lý để xác nhận và tiến hành giao hàng.</p>
+    </div>
+  `;
+  return sendMail(to, subject, html);
+};
+
+// --- 7. Gửi email thông báo hàng đã được gửi (Gửi cho Buyer) ---
+export const sendShipmentNotificationEmail = async (
+  to: string,
+  productName: string
+) => {
+  const subject = `[AuctionBay] Đơn hàng "${productName}" đang trên đường đến!`;
+  const html = `
+    <div style="font-family: Arial, sans-serif; padding: 20px; border: 1px solid #ddd;">
+      <h2 style="color: #28a745;">Hàng đang được giao 🚚</h2>
+      <p>Xin chào,</p>
+      <p>Người bán đã xác nhận gửi hàng cho sản phẩm <strong>${productName}</strong>.</p>
+      <p>Vui lòng chú ý điện thoại để nhận hàng trong vài ngày tới.</p>
+    </div>
+  `;
+  return sendMail(to, subject, html);
+};
+
+// --- 8. Gửi email thông báo nâng cấp Seller thành công (Gửi cho User) ---
+export const sendUpgradeSuccessEmail = async (to: string) => {
+  const subject = `[AuctionBay] Chúc mừng! Tài khoản đã được nâng cấp`;
+  const html = `
+    <div style="font-family: Arial, sans-serif; padding: 20px; border: 1px solid #ddd;">
+      <h2 style="color: #d4183d;">Nâng cấp thành công 🌟</h2>
+      <p>Yêu cầu nâng cấp tài khoản của bạn đã được Admin phê duyệt.</p>
+      <p>Bây giờ bạn có thể đăng bán sản phẩm đấu giá. Chúc bạn buôn may bán đắt!</p>
+      <p><em>Lưu ý: Quyền hạn có hiệu lực trong 7 ngày.</em></p>
+    </div>
+  `;
+  return sendMail(to, subject, html);
+};
+
+// --- 9. Gửi email thông báo mô tả sản phẩm thay đổi ---
+export const sendDescriptionUpdateEmail = async (
+  to: string,
+  productName: string,
+  newDescription: string
+) => {
+  const subject = `[AuctionBay] Cập nhật mô tả cho sản phẩm "${productName}"`;
+  const html = `
+    <div style="font-family: Arial, sans-serif; padding: 20px; border: 1px solid #ddd;">
+      <h2 style="color: #ff9800;">Thông báo cập nhật mô tả ⚠️</h2>
+      <p>Xin chào,</p>
+      <p>Người bán vừa cập nhật thêm thông tin cho sản phẩm <strong>${productName}</strong> mà bạn đang quan tâm.</p>
+      
+      <div style="background-color: #fff3e0; padding: 15px; border-left: 4px solid #ff9800; margin: 20px 0;">
+        <strong>Nội dung bổ sung:</strong>
+        <p style="margin-top: 5px; font-style: italic;">"${newDescription}"</p>
+      </div>
+
+      <p>Vui lòng xem xét kỹ trước khi tiếp tục đấu giá.</p>
+    </div>
+  `;
+  return sendMail(to, subject, html);
 };

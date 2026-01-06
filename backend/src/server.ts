@@ -13,10 +13,9 @@ app.use(express.json());
 
 app.use("/api", apiRoutes);
 
-startCronJobs();
-
 app.listen(PORT, () => {
   console.log(`✅ Backend server đang chạy tại http://localhost:${PORT}`);
+  startCronJobs();
 });
 
 import pool from "./utils/db";

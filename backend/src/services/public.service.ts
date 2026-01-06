@@ -1,21 +1,30 @@
 import pool from "../utils/db";
 
+// Helper: Map dữ liệu ảnh thumbnail vào format chuẩn cho Frontend
 const mapProductImage = (row: any) => {
+  // Ưu tiên lấy thumbnail từ subquery, nếu không thì để mảng rỗng
   row.images = row.thumbnail ? [row.thumbnail] : [];
-  delete row.thumbnail;
-  row.category = row.category_name;
+  // Gán thêm trường image đơn lẻ để Frontend dễ hiển thị
+  row.image = row.thumbnail || "";
+
+  delete row.thumbnail; // Xóa field thừa cho gọn
+
+  if (row.category_name) {
+    row.category = row.category_name;
+  }
   return row;
 };
 
+// 1. LẤY DANH MỤC (MENU)
 export const fetchCategories = async () => {
   const parentsResult = await pool.query(
-    "SELECT * FROM Categories WHERE parent_id IS NULL"
+    "SELECT * FROM Categories WHERE parent_id IS NULL ORDER BY id ASC"
   );
   const parents = parentsResult.rows;
 
   for (const parent of parents) {
     const childrenResult = await pool.query(
-      "SELECT * FROM Categories WHERE parent_id = $1",
+      "SELECT * FROM Categories WHERE parent_id = $1 ORDER BY id ASC",
       [parent.id]
     );
     parent.children = childrenResult.rows;
@@ -23,6 +32,7 @@ export const fetchCategories = async () => {
   return parents;
 };
 
+// 2. LẤY DANH SÁCH SẢN PHẨM (CÓ PHÂN TRANG & LỌC CATEGORY)
 export const fetchProducts = async (
   page: number,
   limit: number,
@@ -30,6 +40,7 @@ export const fetchProducts = async (
 ) => {
   const offset = (page - 1) * limit;
 
+  // Query cơ bản: Chỉ lấy sản phẩm CHƯA KẾT THÚC (end_at > NOW())
   let query = `
     SELECT p.*, 
            c.name as category_name,
@@ -38,31 +49,42 @@ export const fetchProducts = async (
     FROM Products p
     LEFT JOIN Categories c ON p.category_id = c.id
     LEFT JOIN Users b ON p.current_highest_bidder_id = b.id
+    WHERE p.end_at > NOW() 
   `;
 
   const params: any[] = [];
-  let paramIndex = 1;
 
+  // Nếu có lọc theo danh mục
   if (categoryId) {
-    query += ` WHERE (p.category_id = $${paramIndex} OR c.parent_id = $${paramIndex})`;
+    query += ` AND (p.category_id = $${params.length + 1} OR c.parent_id = $${
+      params.length + 1
+    })`;
     params.push(categoryId);
-    paramIndex++;
   }
 
-  query += ` ORDER BY p.created_at DESC LIMIT $${paramIndex} OFFSET $${
-    paramIndex + 1
+  // Sắp xếp và Phân trang
+  // Lưu ý: tham số limit/offset được push tiếp theo
+  query += ` ORDER BY p.created_at DESC LIMIT $${params.length + 1} OFFSET $${
+    params.length + 2
   }`;
   params.push(limit, offset);
 
   const productsResult = await pool.query(query, params);
 
-  let countQuery =
-    "SELECT COUNT(*) as total FROM Products p LEFT JOIN Categories c ON p.category_id = c.id";
+  // Tính tổng số lượng để phân trang
+  let countQuery = `
+    SELECT COUNT(*) as total 
+    FROM Products p 
+    LEFT JOIN Categories c ON p.category_id = c.id
+    WHERE p.end_at > NOW()
+  `;
+
   let countParams: any[] = [];
   if (categoryId) {
-    countQuery += " WHERE (p.category_id = $1 OR c.parent_id = $1)";
+    countQuery += ` AND (p.category_id = $1 OR c.parent_id = $1)`;
     countParams.push(categoryId);
   }
+
   const totalResult = await pool.query(countQuery, countParams);
   const total = parseInt(totalResult.rows[0].total, 10);
 
@@ -71,10 +93,12 @@ export const fetchProducts = async (
     pagination: {
       total_pages: Math.ceil(total / limit),
       current_page: page,
+      total_records: total,
     },
   };
 };
 
+// 3. CHI TIẾT SẢN PHẨM
 export const fetchProductById = async (id: number) => {
   const productRes = await pool.query(
     `
@@ -97,16 +121,19 @@ export const fetchProductById = async (id: number) => {
   const product = productRes.rows[0];
   product.category = product.category_name;
 
+  // Lấy toàn bộ ảnh của sản phẩm
   const imagesRes = await pool.query(
     `SELECT image_url FROM Product_Images WHERE product_id = $1 ORDER BY id ASC`,
     [id]
   );
 
+  // Lấy lịch sử cập nhật mô tả
   const descRes = await pool.query(
     `SELECT description_text, created_at FROM Product_Description_History WHERE product_id = $1 ORDER BY created_at ASC`,
     [id]
   );
 
+  // Lấy 5 sản phẩm liên quan (cùng danh mục, chưa kết thúc)
   const relatedRes = await pool.query(
     `
     SELECT p.*, c.name as category_name,
@@ -137,12 +164,13 @@ export const fetchProductById = async (id: number) => {
           rating_minus: product.bidder_rating_minus,
         }
       : null,
-    images: imagesRes.rows.map((row: any) => row.image_url),
+    images: imagesRes.rows.map((row: any) => row.image_url), // Trả về mảng string url
     description_history: descRes.rows,
     related_products: relatedRes.rows.map(mapProductImage),
   };
 };
 
+// 4. TRANG CHỦ (TOP SẢN PHẨM)
 export const fetchHomepageTops = async () => {
   const baseSelect = `
     SELECT p.*, c.name as category_name, b.full_name as bidder_name,
@@ -152,14 +180,17 @@ export const fetchHomepageTops = async () => {
     LEFT JOIN Users b ON p.current_highest_bidder_id = b.id
   `;
 
+  // Top 5 gần kết thúc
   const endingSoon = await pool.query(`
     ${baseSelect} WHERE end_at > NOW() ORDER BY end_at ASC LIMIT 5
   `);
 
+  // Top 5 nhiều lượt ra giá nhất
   const mostBids = await pool.query(`
     ${baseSelect} WHERE end_at > NOW() ORDER BY bid_count DESC LIMIT 5
   `);
 
+  // Top 5 giá cao nhất
   const highestPrice = await pool.query(`
     ${baseSelect} WHERE end_at > NOW() ORDER BY current_price DESC LIMIT 5
   `);
@@ -171,6 +202,7 @@ export const fetchHomepageTops = async () => {
   };
 };
 
+// 5. TÌM KIẾM SẢN PHẨM (Full Text Search)
 export const searchProducts = async (
   keyword: string,
   page: number,
@@ -179,7 +211,8 @@ export const searchProducts = async (
 ) => {
   const offset = (page - 1) * limit;
 
-  let orderByClause = "ORDER BY p.created_at DESC";
+  let orderByClause = "ORDER BY p.created_at DESC"; // Mặc định: Mới nhất
+
   if (sortStr === "time_desc") {
     orderByClause = "ORDER BY p.end_at DESC";
   } else if (sortStr === "price_asc") {
@@ -196,13 +229,16 @@ export const searchProducts = async (
     LEFT JOIN Categories c ON p.category_id = c.id
     LEFT JOIN Users b ON p.current_highest_bidder_id = b.id
     WHERE p.search_vector @@ plainto_tsquery('english', $1)
-    AND p.end_at > NOW()
+    AND p.end_at > NOW() -- Chỉ tìm sản phẩm chưa kết thúc
     ${orderByClause}
     LIMIT $2 OFFSET $3
   `;
 
   const countQuery = `
-    SELECT COUNT(*) as total FROM Products p WHERE p.search_vector @@ plainto_tsquery('english', $1) AND p.end_at > NOW()
+    SELECT COUNT(*) as total 
+    FROM Products p 
+    WHERE p.search_vector @@ plainto_tsquery('english', $1) 
+    AND p.end_at > NOW()
   `;
 
   const productsResult = await pool.query(query, [keyword, limit, offset]);
@@ -219,49 +255,45 @@ export const searchProducts = async (
   };
 };
 
+// 6. THÔNG TIN NGƯỜI BÁN (VÀ SẢN PHẨM CỦA HỌ)
 export const getSellerInfo = async (sellerId: number) => {
   const userRes = await pool.query(
     `SELECT id, full_name, email, rating_plus, rating_minus, created_at 
-         FROM Users WHERE id = $1`,
+     FROM Users WHERE id = $1`,
     [sellerId]
   );
   if (userRes.rows.length === 0) throw new Error("Seller not found");
 
   const productsRes = await pool.query(
     `SELECT p.*, c.name as category_name,
-        (SELECT image_url FROM Product_Images WHERE product_id = p.id LIMIT 1) as image
-         FROM Products p 
-         LEFT JOIN Categories c ON p.category_id = c.id
-         WHERE p.seller_id = $1 AND end_at > NOW()`,
+        (SELECT image_url FROM Product_Images WHERE product_id = p.id ORDER BY id ASC LIMIT 1) as thumbnail
+     FROM Products p 
+     LEFT JOIN Categories c ON p.category_id = c.id
+     WHERE p.seller_id = $1 AND end_at > NOW()`,
     [sellerId]
   );
 
-  productsRes.rows.forEach((p: any) => {
-    p.category = p.category_name;
-    if (p.image) {
-      p.images = [p.image];
-      delete p.image;
-    } else {
-      p.images = [];
-    }
-  });
-
-  return { seller: userRes.rows[0], products: productsRes.rows };
+  return {
+    seller: userRes.rows[0],
+    products: productsRes.rows.map(mapProductImage),
+  };
 };
 
+// 7. LỊCH SỬ ĐẤU GIÁ (Che tên)
 export const getBidHistory = async (productId: number) => {
   const res = await pool.query(
     `
-        SELECT b.amount, b.created_at, u.full_name, b.bidder_id
-        FROM Bids b
-        JOIN Users u ON b.bidder_id = u.id
-        WHERE b.product_id = $1
-        ORDER BY b.amount DESC
+      SELECT b.amount, b.created_at, u.full_name, b.bidder_id
+      FROM Bids b
+      JOIN Users u ON b.bidder_id = u.id
+      WHERE b.product_id = $1
+      ORDER BY b.amount DESC
     `,
     [productId]
   );
 
   return res.rows.map((bid) => {
+    // Masking tên: **** Tên
     const nameParts = bid.full_name
       ? bid.full_name.trim().split(" ")
       : ["Anonymous"];
@@ -276,6 +308,7 @@ export const getBidHistory = async (productId: number) => {
   });
 };
 
+// 8. CÂU HỎI VỀ SẢN PHẨM
 export const getProductQuestions = async (productId: number) => {
   const res = await pool.query(
     `SELECT q.*, 
@@ -291,6 +324,7 @@ export const getProductQuestions = async (productId: number) => {
   return res.rows;
 };
 
+// 9. ĐÁNH GIÁ NGƯỜI BÁN
 export const getSellerReviews = async (sellerId: number) => {
   const res = await pool.query(
     `SELECT r.score, r.comment, r.created_at, u.full_name as rater_name

@@ -8,7 +8,6 @@ import { useAuth } from "../context/AuthContext";
 import axios from "axios";
 import { toast } from "sonner";
 import { User } from "../types";
-// 1. Import hook useGoogleLogin
 import { useGoogleLogin } from "@react-oauth/google";
 
 interface LoginPageProps {
@@ -20,24 +19,21 @@ export function LoginPage({ onNavigate }: LoginPageProps) {
   const [password, setPassword] = useState("");
   const { login } = useAuth();
 
-  // 2. Khai báo hàm xử lý đăng nhập Google
+  // --- Logic xử lý Google Login ---
   const handleGoogleLogin = useGoogleLogin({
     onSuccess: async (tokenResponse) => {
       try {
         const accessToken = tokenResponse.access_token;
 
-        // Gọi API backend để xác thực token Google
         const response = await axios.post("/api/auth/google-login", {
           accessToken,
         });
 
         const { token, user } = response.data;
 
-        // Lưu thông tin user vào context
         login(token, user as User);
         toast.success(`Đăng nhập thành công! Chào ${user.full_name}`);
 
-        // Điều hướng sau khi đăng nhập thành công
         const params = new URLSearchParams(window.location.search);
         const pageParam = params.get("page");
         const idParam = params.get("id");
@@ -63,7 +59,7 @@ export function LoginPage({ onNavigate }: LoginPageProps) {
     },
   });
 
-  // 3. Hàm xử lý đăng nhập thường (giữ nguyên)
+  // --- Logic xử lý Login thường ---
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
@@ -109,20 +105,22 @@ export function LoginPage({ onNavigate }: LoginPageProps) {
               <span className="text-2xl text-white font-bold">AB</span>
             </div>
             <h1 className="text-3xl font-bold text-gray-900 mb-2">
-              Welcome Back
+              Chào mừng trở lại
             </h1>
-            <p className="text-gray-600">Sign in to your account to continue</p>
+            <p className="text-gray-600">
+              Đăng nhập để tiếp tục sử dụng dịch vụ
+            </p>
           </div>
 
           <form onSubmit={handleSubmit} className="space-y-6">
             <div>
-              <Label htmlFor="email">Email Address</Label>
+              <Label htmlFor="email">Địa chỉ Email</Label>
               <div className="relative mt-2">
                 <Mail className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-gray-400" />
                 <Input
                   id="email"
                   type="email"
-                  placeholder="you@example.com"
+                  placeholder="nguoidung@vidu.com"
                   className="pl-10"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
@@ -132,7 +130,7 @@ export function LoginPage({ onNavigate }: LoginPageProps) {
             </div>
 
             <div>
-              <Label htmlFor="password">Password</Label>
+              <Label htmlFor="password">Mật khẩu</Label>
               <div className="relative mt-2">
                 <Lock className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-gray-400" />
                 <Input
@@ -154,7 +152,7 @@ export function LoginPage({ onNavigate }: LoginPageProps) {
                   htmlFor="remember"
                   className="text-sm text-gray-600 cursor-pointer select-none"
                 >
-                  Remember me
+                  Ghi nhớ đăng nhập
                 </label>
               </div>
               <button
@@ -162,7 +160,7 @@ export function LoginPage({ onNavigate }: LoginPageProps) {
                 onClick={() => onNavigate("forgot-password")}
                 className="text-sm text-[#0A84FF] hover:underline font-medium"
               >
-                Forgot password?
+                Quên mật khẩu?
               </button>
             </div>
 
@@ -170,7 +168,7 @@ export function LoginPage({ onNavigate }: LoginPageProps) {
               type="submit"
               className="w-full bg-[#0A84FF] hover:bg-[#0A84FF]/90 h-11 font-medium"
             >
-              Sign In
+              Đăng nhập
             </Button>
           </form>
 
@@ -180,16 +178,15 @@ export function LoginPage({ onNavigate }: LoginPageProps) {
             </div>
             <div className="relative flex justify-center text-sm">
               <span className="px-2 bg-white text-gray-500 font-medium">
-                Or continue with
+                Hoặc tiếp tục với
               </span>
             </div>
           </div>
 
           <div className="grid gap-3">
-            {/* 4. Gắn sự kiện onClick gọi hàm handleGoogleLogin */}
-            <Button 
-              variant="outline" 
-              type="button" 
+            <Button
+              variant="outline"
+              type="button"
               className="font-normal"
               onClick={() => handleGoogleLogin()}
             >
@@ -216,13 +213,13 @@ export function LoginPage({ onNavigate }: LoginPageProps) {
           </div>
 
           <div className="mt-6 text-center text-sm text-gray-600">
-            Don't have an account?{" "}
+            Bạn chưa có tài khoản?{" "}
             <button
               type="button"
               onClick={() => onNavigate("signup")}
               className="text-[#0A84FF] hover:underline font-medium"
             >
-              Sign up
+              Đăng ký ngay
             </button>
           </div>
         </div>

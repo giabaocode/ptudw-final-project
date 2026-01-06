@@ -38,29 +38,41 @@ export const addToWatchlist = async (req: Request, res: Response) => {
   }
 };
 
+// backend/src/controllers/bidder.controller.ts
+
+// ... các import
+
 export const getWatchlist = async (req: Request, res: Response) => {
   try {
     const userId = (req as any).user.id;
-    const list = await bidderService.getMyWatchList(userId);
-
-    console.log(`User ${userId} watchlist:`, list);
-
-    res.json(list);
+    // Gọi service
+    const result = await bidderService.getMyWatchList(userId);
+    res.json(result);
   } catch (error: any) {
-    console.error("Watchlist Error:", error);
-    res.status(500).json({ message: error.message });
+    // 👇 QUAN TRỌNG: Phải có dòng này thì Terminal mới hiện lỗi
+    console.error("❌ LỖI TẠI getWatchlist Controller:", error);
+
+    res.status(500).json({
+      message: error.message || "Lỗi server nội bộ",
+      detail: error, // Gửi chi tiết lỗi về frontend để dễ xem
+    });
   }
 };
 
 export const getMyBids = async (req: Request, res: Response) => {
   try {
     const userId = (req as any).user.id;
-    const list = await bidderService.getMyBid(userId);
-    res.json(list);
+    const result = await bidderService.getMyBid(userId);
+    res.json(result);
   } catch (error: any) {
+    // 👇 QUAN TRỌNG
+    console.error("❌ LỖI TẠI getMyBids Controller:", error);
+
     res.status(500).json({ message: error.message });
   }
 };
+
+// ... các hàm khác
 
 export const getWonAuctions = async (req: Request, res: Response) => {
   try {

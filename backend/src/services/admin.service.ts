@@ -1,5 +1,5 @@
 import pool from "../utils/db";
-
+import { sendUpgradeSuccessEmail } from "../utils/email";
 export const getAllCategories = async () => {
   const res = await pool.query(`
     SELECT c.*, p.name as parent_name, 
@@ -132,6 +132,12 @@ export const approveUpgradeRequest = async (
     );
 
     await client.query("COMMIT");
+    const userRes = await pool.query("SELECT email FROM Users WHERE id = $1", [
+      userId,
+    ]); // userId lấy từ logic cũ của bạn
+    if (userRes.rows.length > 0) {
+      sendUpgradeSuccessEmail(userRes.rows[0].email).catch(console.error);
+    }
     return { message: "Đã duyệt nâng cấp thành công (7 ngày)" };
   } catch (e) {
     await client.query("ROLLBACK");

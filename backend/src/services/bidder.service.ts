@@ -3,6 +3,7 @@ import {
   sendQuestionNotificationEmail,
   sendOutbidEmail,
   sendSellerNewBidEmail,
+  sendPaymentNotificationEmail,
 } from "../utils/email";
 // 1. RA GIÁ (BID)
 export const placeBid = async (
@@ -191,9 +192,16 @@ export const placeBid = async (
       if (oldUserRes.rows.length > 0) {
         const oldEmail = oldUserRes.rows[0].email;
         // Không await để tránh làm chậm phản hồi cho người đang bid
-        sendOutbidEmail(oldEmail, product.name, newCurrentPrice).catch(
-          console.error
-        );
+        const frontendUrl = process.env.FRONTEND_URL || "http://localhost:3000";
+        const productLink = `${frontendUrl}/?page=auction&id=${productId}`;
+
+        // 👇 TRUYỀN LINK VÀO HÀM GỬI MAIL
+        sendOutbidEmail(
+          oldEmail,
+          product.name,
+          newCurrentPrice,
+          productLink // <--- Tham số mới thêm
+        ).catch(console.error);
       }
     }
 
@@ -246,26 +254,70 @@ export const addToWatchlist = async (userId: number, productId: number) => {
 };
 
 // 3. LẤY WATCHLIST
+// backend/src/services/bidder.service.ts
+
+// backend/src/services/bidder.service.ts
+
+// backend/src/services/bidder.service.ts
+// backend/src/services/bidder.service.ts
+
 export const getMyWatchList = async (userId: number) => {
-  const res = await pool.query(
-    `SELECT p.*, 
-        (SELECT image_url FROM Product_Images WHERE product_id = p.id LIMIT 1) AS image 
-        FROM Watchlists w
-        JOIN Products p ON w.product_id = p.id
-        WHERE w.user_id = $1
-        AND p.end_at > NOW() 
-        ORDER BY w.created_at DESC`,
-    [userId]
-  );
+  // 1. Câu query an toàn:
+  // - Lấy thông tin sản phẩm (p.*)
+  // - Lấy tên người bán (u.full_name)
+  // - Lấy 1 ảnh đại diện từ bảng Product_Images (subquery) để chắc chắn có ảnh hiển thị
+  const query = `
+    SELECT p.*, 
+           u.full_name as seller_name,
+           (SELECT image_url FROM Product_Images WHERE product_id = p.id ORDER BY id ASC LIMIT 1) as thumbnail_image
+    FROM Watchlists w
+    JOIN Products p ON w.product_id = p.id
+    JOIN Users u ON p.seller_id = u.id
+    WHERE w.user_id = $1
+    ORDER BY w.created_at DESC
+  `;
 
-  return res.rows;
+  try {
+    const result = await pool.query(query, [userId]);
+
+    return result.rows.map((row) => {
+      // 2. Xử lý ảnh: Ưu tiên lấy ảnh từ bảng Product_Images (thumbnail_image)
+      // Nếu không có, mới thử parse cột images cũ (đề phòng dữ liệu cũ)
+      let finalImage = row.thumbnail_image || "";
+      let imagesArray: string[] = [];
+
+      // Logic "chống sập" khi parse JSON
+      if (!finalImage && row.images) {
+        if (typeof row.images === "string") {
+          try {
+            imagesArray = JSON.parse(row.images);
+          } catch (e) {
+            imagesArray = [];
+          }
+        } else if (Array.isArray(row.images)) {
+          imagesArray = row.images;
+        }
+        if (imagesArray.length > 0) finalImage = imagesArray[0];
+      }
+
+      return {
+        ...row,
+        images: imagesArray, // Trả về mảng ảnh (nếu cần dùng)
+        image: finalImage, // Frontend dùng trường này để hiển thị ảnh bìa
+      };
+    });
+  } catch (error) {
+    // 3. Log lỗi chi tiết ra Terminal để bạn biết chính xác dòng nào sai
+    console.error("❌ CRITICAL ERROR tại getMyWatchList:", error);
+    throw error;
+  }
 };
-
 // 4. LẤY DANH SÁCH ĐÃ BID (Sử dụng phiên bản tối ưu từ nhánh Pagination)
 // 4. LẤY DANH SÁCH ĐÃ BID (Gộp tính năng của cả 2 nhánh)
+// Tìm và thay thế hàm getMyBid cũ bằng hàm này:
+
 export const getMyBid = async (userId: number) => {
-  // Lấy tất cả sản phẩm mà user này từng bid
-  // Sử dụng DISTINCT để tránh trùng lặp nếu user bid nhiều lần vào 1 sản phẩm
+  // 1. Câu lệnh SQL chuẩn, đã test kỹ
   const query = `
     SELECT DISTINCT p.*, 
            (
@@ -273,7 +325,8 @@ export const getMyBid = async (userId: number) => {
              FROM Bids 
              WHERE product_id = p.id AND bidder_id = $1
            ) as my_highest_bid,
-           u.full_name as seller_name
+           u.full_name as seller_name,
+           (SELECT image_url FROM Product_Images WHERE product_id = p.id ORDER BY id ASC LIMIT 1) as image
     FROM Products p
     JOIN Bids b ON p.id = b.product_id
     JOIN Users u ON p.seller_id = u.id
@@ -281,46 +334,77 @@ export const getMyBid = async (userId: number) => {
     ORDER BY p.end_at DESC
   `;
 
-  const result = await pool.query(query, [userId]);
-  
-  // Xử lý ảnh (nếu lưu dạng chuỗi JSON hoặc mảng)
-  return result.rows.map(row => {
-  // Parse chuỗi JSON nếu database lưu dạng text "[link1, link2]"
-  let images = [];
   try {
-    images = typeof row.images === 'string' ? JSON.parse(row.images) : row.images;
-  } catch (e) {
-    images = [];
-  }
+    const result = await pool.query(query, [userId]);
 
-  return {
-    ...row,
-    images: Array.isArray(images) ? images : [], 
-    // Ưu tiên lấy ảnh đầu tiên trong mảng làm ảnh đại diện
-    image: row.image || (Array.isArray(images) && images[0]) || ""
-  };
-});
+    return result.rows.map((row) => {
+      // 2. Xử lý logic parse ảnh an toàn hơn (tránh crash nếu data lỗi)
+      let images: string[] = [];
+
+      if (typeof row.images === "string") {
+        try {
+          // Thử parse nếu là chuỗi JSON
+          images = JSON.parse(row.images);
+        } catch (e) {
+          // Nếu lỗi parse, coi như không có ảnh
+          images = [];
+        }
+      } else if (Array.isArray(row.images)) {
+        // Nếu DB trả về mảng sẵn
+        images = row.images;
+      }
+
+      return {
+        ...row,
+        images: images,
+        // Ưu tiên lấy ảnh từ subquery (row.image), nếu không có thì lấy từ mảng images
+        image: row.image || (images.length > 0 ? images[0] : ""),
+      };
+    });
+  } catch (error) {
+    // 3. Log lỗi ra terminal để dễ debug nếu có sự cố tiếp
+    console.error("❌ Lỗi tại bidder.service.ts -> getMyBid:", error);
+    throw error; // Ném lỗi để Controller bắt được và trả về 500
+  }
 };
-// 5. LẤY DANH SÁCH ĐÃ THẮNG (Từ nhánh Test-2)
+// backend/src/services/bidder.service.ts
+
+// backend/src/services/bidder.service.ts
+
 export const getWonAuctions = async (userId: number) => {
-  const res = await pool.query(
-    `
+  const query = `
     SELECT p.*,
-      (SELECT image_url FROM Product_Images WHERE product_id = p.id LIMIT 1) as image,
+      -- Lấy ảnh thumbnail chuẩn
+      (SELECT image_url FROM Product_Images WHERE product_id = p.id ORDER BY id ASC LIMIT 1) as image,
       u.full_name as seller_name,
+      
+      -- Lấy trạng thái giao dịch (nếu có)
       t.status as transaction_status,
-      t.shipping_address,
-      t.payment_proof
+      t.id as transaction_id
+      
     FROM Products p
     JOIN Users u ON p.seller_id = u.id
     LEFT JOIN Transactions t ON p.id = t.product_id
+    
     WHERE p.current_highest_bidder_id = $1 
-      AND p.end_at < NOW()
+      AND p.end_at < NOW() -- Điều kiện tiên quyết: Đã hết giờ và mình là người giữ giá cao nhất
+      
     ORDER BY p.end_at DESC
-  `,
-    [userId]
-  );
-  return res.rows;
+  `;
+
+  try {
+    const res = await pool.query(query, [userId]);
+
+    // Map xử lý ảnh để tránh lỗi null
+    return res.rows.map((row) => {
+      let finalImage = row.image || "";
+      // Logic fallback ảnh cũ nếu cần...
+      return { ...row, image: finalImage };
+    });
+  } catch (error) {
+    console.error("❌ Lỗi getWonAuctions:", error);
+    throw error;
+  }
 };
 
 // 6. ĐÁNH GIÁ NGƯỜI BÁN (Từ nhánh Test-2)
@@ -439,7 +523,7 @@ export const postQuestion = async (
       // Tạo link trỏ về trang chi tiết sản phẩm ở Frontend (Giả sử FE chạy port 3000)
       // Bạn nên đưa URL gốc vào biến môi trường (process.env.FRONTEND_URL) thì tốt hơn
       const frontendUrl = process.env.FRONTEND_URL || "http://localhost:3000";
-      const productLink = `${frontendUrl}/?page=auction&id=${productId}`; // Hoặc /auction/${productId} tùy route FE
+      const productLink = `${frontendUrl}/?page=auction&id=${productId}`;
 
       // 3. Gửi email (Không await để tránh làm chậm response của User)
       sendQuestionNotificationEmail(
@@ -464,9 +548,9 @@ export const submitPayment = async (
 ) => {
   const client = await pool.connect();
   try {
-    // 1. Sửa lỗi chính tả: Prducts -> Products
+    // 👇 SỬA LỖI Ở ĐÂY: Thêm cột "name" vào câu truy vấn
     const product = await client.query(
-      `SELECT current_highest_bidder_id, current_price, seller_id FROM Products WHERE id = $1`,
+      `SELECT current_highest_bidder_id, current_price, seller_id, name FROM Products WHERE id = $1`,
       [productId]
     );
 
@@ -498,9 +582,26 @@ export const submitPayment = async (
       ]
     );
 
+    const sellerRes = await client.query(
+      "SELECT email FROM Users WHERE id = $1",
+      [product.rows[0].seller_id]
+    );
+    const buyerRes = await client.query(
+      "SELECT full_name FROM Users WHERE id = $1",
+      [userId]
+    );
+
+    if (sellerRes.rows.length > 0 && buyerRes.rows.length > 0) {
+      // Gửi mail không cần await để giao diện phản hồi nhanh
+      sendPaymentNotificationEmail(
+        sellerRes.rows[0].email,
+        product.rows[0].name, // ✅ Bây giờ cái này mới có dữ liệu
+        buyerRes.rows[0].full_name
+      ).catch(console.error);
+    }
+
     return { message: "Đã gửi thông tin thanh toán. Chờ người bán xác nhận." };
   } catch (error) {
-    // 2. QUAN TRỌNG: Phải throw error để controller biết mà báo lỗi 500
     console.error("Lỗi submitPayment:", error);
     throw error;
   } finally {
