@@ -121,3 +121,19 @@ export const getSellerReviews = async (req: Request, res: Response) => {
     res.status(500).json({ message: error.message });
   }
 };
+
+// --- Dán thêm vào cuối file ---
+
+export const getUserFeedbackController = async (req: Request, res: Response) => {
+  try {
+    const userId = parseInt(req.params.id);
+    if (isNaN(userId)) {
+        return res.status(400).json({ message: "Invalid User ID" });
+    }
+    const feedback = await publicService.getUserFeedback(userId);
+    res.json(feedback);
+  } catch (error: any) {
+    console.error(">>> [ERROR] getUserFeedback:", error);
+    res.status(500).json({ message: error.message });
+  }
+};

@@ -42,6 +42,7 @@ import { formatDistanceToNow, format } from "date-fns";
 import { vi } from "date-fns/locale";
 import { createPortal } from "react-dom";
 import { UserX } from "lucide-react";
+import { UserFeedbackModal } from "./UserFeedbackModal";
 
 interface AuctionPageProps {
   onNavigate: (page: string, id?: any) => void;
@@ -50,6 +51,7 @@ interface AuctionPageProps {
 
 interface BidHistory {
   bidder_name: string;
+  bidder_id: number;
   amount: number;
   created_at: string;
 }
@@ -69,7 +71,6 @@ interface Review {
   created_at: string;
 }
 
-// Hàm format thời gian (Fix Timezone)
 const formatTimeAgo = (dateString: string) => {
   if (!dateString) return "Vừa xong";
   const safeDateStr = String(dateString).replace(" ", "T");
@@ -102,7 +103,7 @@ const ReplyForm = ({
   const { token } = useAuth();
 
   const handleSubmit = async () => {
-    if (!text.trim() || isSubmitting) return; // Chặn spam click
+    if (!text.trim() || isSubmitting) return;
     setIsSubmitting(true);
     try {
       await axios.post(
@@ -127,7 +128,7 @@ const ReplyForm = ({
         placeholder="Nhập câu trả lời của bạn..."
         value={text}
         onChange={(e) => setText(e.target.value)}
-        disabled={isSubmitting} // Disable khi đang gửi
+        disabled={isSubmitting}
         onKeyDown={(e) => {
           if (e.key === "Enter") {
             e.preventDefault();
@@ -161,7 +162,16 @@ export function AuctionPage({ onNavigate, auctionId }: AuctionPageProps) {
   const [questionText, setQuestionText] = useState("");
   const [watchlistLoading, setWatchlistLoading] = useState(false);
 
-  // State lock nút gửi để tránh spam
+  const [feedbackUserId, setFeedbackUserId] = useState<number | null>(null);
+  const [feedbackUserName, setFeedbackUserName] = useState<string>("");
+  const [isFeedbackOpen, setIsFeedbackOpen] = useState(false);
+
+  const handleViewFeedback = (userId: number, name: string) => {
+    setFeedbackUserId(userId);
+    setFeedbackUserName(name);
+    setIsFeedbackOpen(true);
+  };
+
   const [isPostingQuestion, setIsPostingQuestion] = useState(false);
 
   const [qaPage, setQaPage] = useState(1);
@@ -169,14 +179,12 @@ export function AuctionPage({ onNavigate, auctionId }: AuctionPageProps) {
 
   const { isLoggedIn, token, user } = useAuth();
 
-  // State và ref cho modal xác nhận ra giá (từ code cần merge)
   const confirmBtnRef = useRef<HTMLButtonElement | null>(null);
   const [showConfirmModal, setShowConfirmModal] = useState(false);
   const [modalReady, setModalReady] = useState(false);
   const [pendingBidAmount, setPendingBidAmount] = useState<number | null>(null);
   const [isBidding, setIsBidding] = useState(false);
 
-  // --- [MỚI] STATE CHO MODAL KICK (TỪ CHỐI) ---
   const kickBtnRef = useRef<HTMLButtonElement | null>(null);
   const [showKickModal, setShowKickModal] = useState(false);
   const [kickModalReady, setKickModalReady] = useState(false);
@@ -186,7 +194,6 @@ export function AuctionPage({ onNavigate, auctionId }: AuctionPageProps) {
   } | null>(null);
   const [isKicking, setIsKicking] = useState(false);
 
-  // Ref cho interval để clear khi component unmount hoặc khi chuyển sản phẩm
   const pollingIntervalRef = useRef<NodeJS.Timeout | null>(null);
   const isComponentMounted = useRef(true);
 
@@ -261,17 +268,14 @@ export function AuctionPage({ onNavigate, auctionId }: AuctionPageProps) {
   }, [auctionId, onNavigate]);
 
   useEffect(() => {
-    // Reset và tải dữ liệu mới khi auctionId thay đổi
     const loadAuctionData = async () => {
       if (!auctionId) return;
 
-      // Clear polling cũ nếu có
       if (pollingIntervalRef.current) {
         clearInterval(pollingIntervalRef.current);
         pollingIntervalRef.current = null;
       }
 
-      // Reset state
       setAuction(null);
       setBidHistory([]);
       setQuestions([]);
@@ -280,12 +284,9 @@ export function AuctionPage({ onNavigate, auctionId }: AuctionPageProps) {
       setActiveImageIndex(0);
       setLoading(true);
 
-      // Fetch dữ liệu
       await fetchAuctionData();
 
-      // Chỉ bắt đầu polling sau khi dữ liệu đã load xong và component vẫn mounted
       if (isComponentMounted.current && auctionId) {
-        // Thiết lập polling với khoảng thời gian hợp lý hơn (5 giây)
         pollingIntervalRef.current = setInterval(() => {
           if (
             document.visibilityState === "visible" &&
@@ -293,13 +294,12 @@ export function AuctionPage({ onNavigate, auctionId }: AuctionPageProps) {
           ) {
             fetchAuctionData();
           }
-        }, 5000); // 5 giây để giảm tải
+        }, 5000);
       }
     };
 
     loadAuctionData();
 
-    // Cleanup
     return () => {
       if (pollingIntervalRef.current) {
         clearInterval(pollingIntervalRef.current);
@@ -307,8 +307,7 @@ export function AuctionPage({ onNavigate, auctionId }: AuctionPageProps) {
       }
     };
   }, [auctionId, fetchAuctionData]);
-  // --- [MỚI] EFFECT CHO MODAL KICK ---
-  // Animation hiện modal
+
   useEffect(() => {
     if (showKickModal) {
       setKickModalReady(false);
@@ -319,14 +318,12 @@ export function AuctionPage({ onNavigate, auctionId }: AuctionPageProps) {
     }
   }, [showKickModal]);
 
-  // Focus vào nút xác nhận khi mở
   useEffect(() => {
     if (kickModalReady && kickBtnRef.current) {
       kickBtnRef.current.focus();
     }
   }, [kickModalReady]);
 
-  // Khóa cuộn trang (kết hợp logic cũ hoặc thêm mới)
   useEffect(() => {
     if (showKickModal) {
       const prevOverflow = document.body.style.overflow;
@@ -336,7 +333,7 @@ export function AuctionPage({ onNavigate, auctionId }: AuctionPageProps) {
       };
     }
   }, [showKickModal]);
-  // Cleanup khi component unmount
+
   useEffect(() => {
     return () => {
       isComponentMounted.current = false;
@@ -347,10 +344,8 @@ export function AuctionPage({ onNavigate, auctionId }: AuctionPageProps) {
     };
   }, []);
 
-  // Auto focus khi modal sẵn sàng (từ code cần merge)
   useEffect(() => {
     if (showConfirmModal) {
-      // small delay để portal + DOM hoàn chỉnh, tránh race với animation
       setModalReady(false);
       const t = window.setTimeout(() => setModalReady(true), 20);
       return () => window.clearTimeout(t);
@@ -365,7 +360,6 @@ export function AuctionPage({ onNavigate, auctionId }: AuctionPageProps) {
     }
   }, [modalReady]);
 
-  // Disable body scroll + touch when modal open (từ code cần merge)
   useEffect(() => {
     if (showConfirmModal) {
       const prevOverflow = document.body.style.overflow;
@@ -383,7 +377,6 @@ export function AuctionPage({ onNavigate, auctionId }: AuctionPageProps) {
     };
   }, [showConfirmModal]);
 
-  // Close on ESC (từ code cần merge)
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (e.key === "Escape") {
@@ -397,23 +390,6 @@ export function AuctionPage({ onNavigate, auctionId }: AuctionPageProps) {
     return;
   }, [showConfirmModal]);
 
-  // Image Navigation
-  const handleNextImage = () => {
-    if (!auction?.images) return;
-    const nextIndex = (activeImageIndex + 1) % auction.images.length;
-    setActiveImage(auction.images[nextIndex]);
-    setActiveImageIndex(nextIndex);
-  };
-
-  const handlePrevImage = () => {
-    if (!auction?.images) return;
-    const prevIndex =
-      (activeImageIndex - 1 + auction.images.length) % auction.images.length;
-    setActiveImage(auction.images[prevIndex]);
-    setActiveImageIndex(prevIndex);
-  };
-
-  // Hàm xử lý đặt giá với modal xác nhận (tích hợp từ code cần merge)
   const handlePlaceBid = async (e?: React.MouseEvent | React.FormEvent) => {
     if (e) {
       e.preventDefault();
@@ -449,13 +425,11 @@ export function AuctionPage({ onNavigate, auctionId }: AuctionPageProps) {
     setShowConfirmModal(true);
   };
 
-  // Hàm thực hiện đặt giá sau khi xác nhận
   const executeBid = async () => {
     if (!pendingBidAmount || !auction) return;
     setIsBidding(true);
 
     try {
-      // Gọi API đặt giá
       await axios.post(
         `/api/bidder/products/${auctionId}/bid`,
         { amount: pendingBidAmount },
@@ -463,11 +437,7 @@ export function AuctionPage({ onNavigate, auctionId }: AuctionPageProps) {
       );
 
       toast.success("Ra giá thành công!");
-
-      // Fetch lại dữ liệu để cập nhật real-time
       await fetchAuctionData();
-
-      // Đóng modal
       setShowConfirmModal(false);
       setPendingBidAmount(null);
     } catch (error: any) {
@@ -494,7 +464,6 @@ export function AuctionPage({ onNavigate, auctionId }: AuctionPageProps) {
       toast.success("Đã gửi câu hỏi!");
       setQuestionText("");
       setQaPage(1);
-      // Cập nhật ngay lập tức
       const qRes = await axios.get(`/api/products/${auctionId}/questions`);
       setQuestions(qRes.data);
     } catch (e) {
@@ -528,13 +497,11 @@ export function AuctionPage({ onNavigate, auctionId }: AuctionPageProps) {
     }
   };
 
-  // 1. Hàm mở modal khi nhấn nút "Từ chối" ở bảng
   const openKickModal = (bidderId: number, bidderName: string) => {
     setBidderToKick({ id: bidderId, name: bidderName });
     setShowKickModal(true);
   };
 
-  // 2. Hàm thực thi gọi API (gắn vào nút trong Modal)
   const executeKick = async () => {
     if (!bidderToKick) return;
     setIsKicking(true);
@@ -548,7 +515,7 @@ export function AuctionPage({ onNavigate, auctionId }: AuctionPageProps) {
       toast.success(`Đã từ chối ${bidderToKick.name} thành công!`);
       setShowKickModal(false);
       setBidderToKick(null);
-      fetchAuctionData(); // Tải lại dữ liệu ngay
+      fetchAuctionData();
     } catch (e: any) {
       console.error(e);
       toast.error(e.response?.data?.message || "Lỗi khi thực hiện.");
@@ -577,7 +544,6 @@ export function AuctionPage({ onNavigate, auctionId }: AuctionPageProps) {
       ? Number(auction.current_price)
       : Number(auction.start_price);
 
-  // Lấy tên người giữ giá (ưu tiên current_highest_bidder object, fallback về bidder_name)
   const highestBidderName =
     auction.current_highest_bidder?.full_name ||
     auction.bidder_name ||
@@ -616,16 +582,11 @@ export function AuctionPage({ onNavigate, auctionId }: AuctionPageProps) {
               />
             </div>
             {auction.images && auction.images.length > 1 && (
-              // Thêm gap-2 để tạo khoảng cách
               <div className="flex mt-4 gap-2 overflow-x-auto pb-2 scrollbar-hide">
                 {auction.images.map((img, idx) => (
                   <button
                     key={idx}
                     onClick={() => setActiveImage(img)}
-                    // SỬA Ở ĐÂY:
-                    // 1. Thay w-full bằng w-20 h-20 (hoặc w-16 h-16 nếu muốn nhỏ hơn nữa)
-                    // 2. Thêm shrink-0 để không bị co lại khi nhiều ảnh
-                    // 3. Thêm overflow-hidden để bo góc ảnh chuẩn hơn
                     className={`relative w-20 h-20 shrink-0 rounded-lg border-2 transition-all overflow-hidden ${
                       activeImage === img
                         ? "border-blue-500 ring-1 ring-blue-500 opacity-100"
@@ -651,8 +612,6 @@ export function AuctionPage({ onNavigate, auctionId }: AuctionPageProps) {
                   <span className="text-black font-medium">5.0</span>
                 </div>
                 <span className="w-1 h-1 bg-gray-300 rounded-full"></span>
-
-                {/* --- [MỚI] HIỂN THỊ THỜI ĐIỂM ĐĂNG --- */}
                 <span
                   className="flex items-center gap-1"
                   title={new Date(auction.created_at).toLocaleString()}
@@ -660,8 +619,6 @@ export function AuctionPage({ onNavigate, auctionId }: AuctionPageProps) {
                   <Calendar className="w-4 h-4" />
                   Đăng: {format(new Date(auction.created_at), "dd/MM/yyyy")}
                 </span>
-                {/* ------------------------------------ */}
-
                 <span className="w-1 h-1 bg-gray-300 rounded-full"></span>
                 <span className="flex items-center gap-1 text-green-600">
                   <ShieldCheck className="w-4 h-4" /> Chính hãng
@@ -709,7 +666,6 @@ export function AuctionPage({ onNavigate, auctionId }: AuctionPageProps) {
                           <th className="px-6 py-3">Bidder</th>
                           <th className="px-6 py-3">Giá</th>
                           <th className="px-6 py-3 text-right">Thời gian</th>
-                          {/* Cột hành động chỉ hiện cho Seller */}
                           {user && auction && user.id == auction.seller_id && (
                             <th className="px-6 py-3 text-center">Hành động</th>
                           )}
@@ -719,7 +675,18 @@ export function AuctionPage({ onNavigate, auctionId }: AuctionPageProps) {
                         {bidHistory.map((bid: any, i) => (
                           <tr key={i}>
                             <td className="px-6 py-4 font-medium text-gray-900">
-                              {bid.bidder_name}
+                              <button
+                                onClick={() =>
+                                  handleViewFeedback(
+                                    bid.bidder_id,
+                                    bid.bidder_name
+                                  )
+                                }
+                                className="hover:text-blue-600 hover:underline text-left font-bold flex items-center gap-1 group"
+                              >
+                                {bid.bidder_name}
+                               
+                              </button>
                             </td>
                             <td className="px-6 py-4 text-blue-600 font-bold">
                               ${Number(bid.amount).toLocaleString()}
@@ -728,7 +695,6 @@ export function AuctionPage({ onNavigate, auctionId }: AuctionPageProps) {
                               {formatRelativeTime(bid.created_at)}
                             </td>
 
-                            {/* Nút Kick - Chỉ hiện cho Seller */}
                             {user &&
                               auction &&
                               user.id == auction.seller_id && (
@@ -737,7 +703,6 @@ export function AuctionPage({ onNavigate, auctionId }: AuctionPageProps) {
                                     variant="destructive"
                                     size="sm"
                                     className="h-8 px-3 bg-red-100 text-red-600 hover:bg-red-600 hover:text-white border-0 transition-colors"
-                                    // [SỬA ĐỔI Ở ĐÂY] Gọi hàm mở modal thay vì hàm cũ
                                     onClick={() =>
                                       openKickModal(
                                         bid.bidder_id,
@@ -917,7 +882,6 @@ export function AuctionPage({ onNavigate, auctionId }: AuctionPageProps) {
                 </span>
               </div>
 
-              {/* --- [MỚI] HIỂN THỊ GIÁ MUA NGAY --- */}
               {auction.buy_now_price && (
                 <div className="mt-3 flex items-center gap-2 text-red-600 bg-red-50 px-3 py-2 rounded-lg border border-red-100">
                   <Tag className="w-4 h-4" />
@@ -926,9 +890,7 @@ export function AuctionPage({ onNavigate, auctionId }: AuctionPageProps) {
                   </span>
                 </div>
               )}
-              {/* ----------------------------------- */}
 
-              {/* --- [MỚI] THÔNG TIN NGƯỜI GIỮ GIÁ CAO NHẤT --- */}
               <div className="mt-4 p-3 bg-blue-50 rounded-xl border border-blue-100 flex items-center justify-between">
                 <div className="flex items-center gap-3">
                   <div className="w-8 h-8 bg-blue-200 rounded-full flex items-center justify-center text-blue-700 font-bold text-xs">
@@ -948,7 +910,6 @@ export function AuctionPage({ onNavigate, auctionId }: AuctionPageProps) {
                 </div>
                 <Trophy className="w-5 h-5 text-yellow-500" />
               </div>
-              {/* --------------------------------------------- */}
 
               <div className="flex flex-wrap gap-3 mt-4">
                 <Badge className="bg-[#FFD700] text-black hover:bg-[#E5C100] px-3 py-1">
@@ -1000,12 +961,27 @@ export function AuctionPage({ onNavigate, auctionId }: AuctionPageProps) {
                   <UserIcon className="w-6 h-6" />
                 </div>
                 <div>
-                  <p className="font-medium text-gray-900">
+                  {/* [ĐÃ SỬA] Click tên -> Chuyển hướng Seller Profile */}
+                  <p
+                    className="font-medium text-gray-900 cursor-pointer hover:text-blue-600 hover:underline"
+                    onClick={() =>
+                      onNavigate("seller-profile", auction.seller_id)
+                    }
+                  >
                     {auction.seller?.full_name}
                   </p>
                   <HoverCard>
                     <HoverCardTrigger asChild>
-                      <div className="flex items-center gap-1 text-xs text-yellow-500 mt-0.5 cursor-pointer hover:underline">
+                      {/* [ĐÃ SỬA] Click đánh giá -> Mở Modal */}
+                      <div
+                        className="flex items-center gap-1 text-xs text-yellow-500 mt-0.5 cursor-pointer hover:underline"
+                        onClick={() =>
+                          handleViewFeedback(
+                            auction.seller_id,
+                            auction.seller?.full_name || "Seller"
+                          )
+                        }
+                      >
                         {[1, 2, 3, 4, 5].map((i) => (
                           <Star key={i} className="w-3 h-3 fill-current" />
                         ))}
@@ -1087,7 +1063,6 @@ export function AuctionPage({ onNavigate, auctionId }: AuctionPageProps) {
         )}
       </div>
 
-      {/* Modal Portal cho xác nhận ra giá (từ code cần merge) */}
       {showConfirmModal &&
         (typeof document !== "undefined"
           ? createPortal(
@@ -1103,14 +1078,12 @@ export function AuctionPage({ onNavigate, auctionId }: AuctionPageProps) {
                   bottom: 0,
                 }}
               >
-                {/* Overlay */}
                 <div
                   className="absolute inset-0 bg-black/60 backdrop-blur-sm transition-opacity"
                   onClick={() => setShowConfirmModal(false)}
                   style={{ zIndex: 0 }}
                 />
 
-                {/* Modal box */}
                 <div
                   onClick={(e) => e.stopPropagation()}
                   className={`relative bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden transition-all duration-200 ${
@@ -1120,7 +1093,6 @@ export function AuctionPage({ onNavigate, auctionId }: AuctionPageProps) {
                   }`}
                   style={{ transformOrigin: "center" }}
                 >
-                  {/* Header */}
                   <div className="bg-white px-6 py-6 border-b border-gray-100 flex items-center gap-4">
                     <div className="w-12 h-12 bg-blue-50 rounded-full flex items-center justify-center flex-shrink-0">
                       <AlertTriangle className="h-6 w-6 text-[#0A84FF]" />
@@ -1142,7 +1114,6 @@ export function AuctionPage({ onNavigate, auctionId }: AuctionPageProps) {
                     </button>
                   </div>
 
-                  {/* Content */}
                   <div className="px-6 py-6 space-y-4">
                     <div className="bg-gray-50 p-4 rounded-xl flex justify-between items-center border border-gray-100">
                       <span className="text-gray-600 font-medium">
@@ -1168,7 +1139,6 @@ export function AuctionPage({ onNavigate, auctionId }: AuctionPageProps) {
                     </p>
                   </div>
 
-                  {/* Footer */}
                   <div className="px-6 py-4 bg-gray-50 flex gap-3 justify-end">
                     <Button
                       variant="outline"
@@ -1192,7 +1162,7 @@ export function AuctionPage({ onNavigate, auctionId }: AuctionPageProps) {
               document.body
             )
           : null)}
-      {/* --- [MỚI] MODAL XÁC NHẬN KICK (TỪ CHỐI) --- */}
+
       {showKickModal &&
         (typeof document !== "undefined"
           ? createPortal(
@@ -1208,13 +1178,11 @@ export function AuctionPage({ onNavigate, auctionId }: AuctionPageProps) {
                   bottom: 0,
                 }}
               >
-                {/* Overlay */}
                 <div
                   className="absolute inset-0 bg-black/60 backdrop-blur-sm transition-opacity"
                   onClick={() => setShowKickModal(false)}
                 />
 
-                {/* Modal Box */}
                 <div
                   onClick={(e) => e.stopPropagation()}
                   className={`relative bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden transition-all duration-200 ${
@@ -1223,10 +1191,8 @@ export function AuctionPage({ onNavigate, auctionId }: AuctionPageProps) {
                       : "opacity-0 scale-95"
                   }`}
                 >
-                  {/* Header - Màu đỏ cảnh báo */}
                   <div className="bg-white px-6 py-6 border-b border-gray-100 flex items-center gap-4">
                     <div className="w-12 h-12 bg-red-50 rounded-full flex items-center justify-center flex-shrink-0">
-                      {/* Dùng AlertTriangle hoặc UserX */}
                       <AlertTriangle className="h-6 w-6 text-red-600" />
                     </div>
                     <div>
@@ -1245,7 +1211,6 @@ export function AuctionPage({ onNavigate, auctionId }: AuctionPageProps) {
                     </button>
                   </div>
 
-                  {/* Content */}
                   <div className="px-6 py-6 space-y-4">
                     <div className="bg-red-50 p-4 rounded-xl border border-red-100">
                       <p className="text-red-800 font-medium mb-1">
@@ -1277,7 +1242,6 @@ export function AuctionPage({ onNavigate, auctionId }: AuctionPageProps) {
                     </div>
                   </div>
 
-                  {/* Footer */}
                   <div className="px-6 py-4 bg-gray-50 flex gap-3 justify-end">
                     <Button
                       variant="outline"
@@ -1301,6 +1265,13 @@ export function AuctionPage({ onNavigate, auctionId }: AuctionPageProps) {
               document.body
             )
           : null)}
+
+      <UserFeedbackModal
+        isOpen={isFeedbackOpen}
+        onClose={() => setIsFeedbackOpen(false)}
+        userId={feedbackUserId}
+        userName={feedbackUserName}
+      />
     </div>
   );
 }

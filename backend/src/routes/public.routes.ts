@@ -7,12 +7,13 @@ import {
   searchProducts,
   getQuestions,
   getSellerReviews,
+  getUserFeedbackController
 } from "../controllers/public.controller";
 
 import { getSellerProfile } from "../controllers/public.controller";
 import { getBidHistory } from "../controllers/public.controller";
-
 const router = Router();
+router.get("/users/:id/feedback", getUserFeedbackController);
 
 router.get("/categories", getCategories);
 

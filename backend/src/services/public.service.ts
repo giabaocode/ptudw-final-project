@@ -337,3 +337,19 @@ export const getSellerReviews = async (sellerId: number) => {
   );
   return res.rows;
 };
+
+// --- Dán thêm vào cuối file ---
+
+// 10. LẤY FEEDBACK CỦA BẤT KỲ USER NÀO (Dùng cho Modal)
+export const getUserFeedback = async (userId: number) => {
+  // Query lấy đánh giá từ bảng Ratings, join với Users để lấy tên người đánh giá
+  const res = await pool.query(
+    `SELECT r.score, r.comment, r.created_at, u.full_name as rater_name
+     FROM Ratings r 
+     JOIN Users u ON r.rater_id = u.id
+     WHERE r.rated_user_id = $1
+     ORDER BY r.created_at DESC`,
+    [userId]
+  );
+  return res.rows;
+};

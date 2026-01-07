@@ -316,9 +316,13 @@ const SellerProfileWrapper = () => {
 
 const ProfileWrapper = () => {
   const navigate = useNavigate();
-  return <ProfilePage onNavigate={(p) => navigate(`/${p}`)} />;
+  // SỬA DÒNG DƯỚI ĐÂY: Thêm tham số id và logic kiểm tra
+  return (
+    <ProfilePage 
+      onNavigate={(p, id) => (id ? navigate(`/${p}/${id}`) : navigate(`/${p}`))} 
+    />
+  );
 };
-
 const PostProductWrapper = () => {
   const navigate = useNavigate();
   return <PostProductPage onNavigate={(p) => navigate(`/${p}`)} />;

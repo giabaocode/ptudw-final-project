@@ -190,6 +190,14 @@ export function ProfilePage({ onNavigate }: ProfilePageProps) {
   const now = new Date().getTime();
   const wonBids = wonProducts;
 
+    const totalFeedbackCount = myFeedback.length;
+  const positiveCount = myFeedback.filter((f) => f.score === "positive").length;
+  const negativeCount = totalFeedbackCount - positiveCount;
+  const positivePercent =
+    totalFeedbackCount > 0
+      ? Math.round((positiveCount / totalFeedbackCount) * 100)
+      : 0;
+
   // Logic lọc Active Bids (Những cái chưa hết hạn)
   const activeBids = rawMyBids.filter((p: any) => {
     if (p.transaction_status) return false;
@@ -478,7 +486,10 @@ export function ProfilePage({ onNavigate }: ProfilePageProps) {
                         >
                           <td className="px-6 py-4 align-middle">
                             <div className="flex items-center gap-4">
-                              <div className="w-12 h-12 rounded border bg-gray-100 overflow-hidden shrink-0">
+                              <div
+                                className="w-12 h-12 rounded border bg-gray-100 overflow-hidden shrink-0 cursor-pointer"
+                                onClick={() => onNavigate("product", p.id)}
+                              >
                                 <ImageWithFallback
                                   src={p.image || ""}
                                   className="w-full h-full object-cover"
@@ -486,8 +497,9 @@ export function ProfilePage({ onNavigate }: ProfilePageProps) {
                               </div>
                               <div className="min-w-0">
                                 <div
-                                  className="font-semibold text-gray-900 truncate max-w-[200px]"
+                                  className="font-semibold text-gray-900 truncate max-w-[200px] cursor-pointer hover:text-blue-600"
                                   title={p.name}
+                                  onClick={() => onNavigate("product", p.id)}
                                 >
                                   {p.name}
                                 </div>
@@ -554,7 +566,7 @@ export function ProfilePage({ onNavigate }: ProfilePageProps) {
             </div>
           </TabsContent>
 
-          {/* TAB: ĐANG ĐẤU GIÁ (My Bids) - ĐÃ CHỈNH SỬA CARD VIEW */}
+          {/* TAB: ĐANG ĐẤU GIÁ (My Bids) - ĐÃ CHỈNH SỬA CARD VIEW & NAVIGATION */}
           <TabsContent value="bids" className="outline-none">
             {activeBids.length > 0 ? (
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
@@ -564,7 +576,8 @@ export function ProfilePage({ onNavigate }: ProfilePageProps) {
                   return (
                     <div
                       key={item.id}
-                      className={`relative bg-white rounded-xl overflow-hidden shadow-sm transition-all hover:shadow-md border-2 ${
+                      onClick={() => onNavigate("product", item.id)} // [QUAN TRỌNG] Click vào thẻ cũng xem được
+                      className={`relative bg-white rounded-xl overflow-hidden shadow-sm transition-all hover:shadow-md border-2 cursor-pointer ${
                         isWinning
                           ? "border-green-500/50"
                           : "border-red-500/50 hover:border-red-500"
@@ -603,7 +616,7 @@ export function ProfilePage({ onNavigate }: ProfilePageProps) {
                       {/* --- NỘI DUNG --- */}
                       <div className="p-4 flex flex-col h-[calc(100%-12rem)]">
                         <h3
-                          className="font-bold text-gray-900 line-clamp-1 text-lg mb-3"
+                          className="font-bold text-gray-900 line-clamp-1 text-lg mb-3 hover:text-blue-600"
                           title={item.name}
                         >
                           {item.name}
@@ -650,7 +663,10 @@ export function ProfilePage({ onNavigate }: ProfilePageProps) {
                             <Button
                               variant="destructive"
                               className="w-full bg-red-600 hover:bg-red-700 text-white font-bold shadow-red-200 shadow-lg transition-all transform hover:-translate-y-0.5"
-                              onClick={() => onNavigate("auction", item.id)}
+                              onClick={(e: React.MouseEvent) => {
+                                e.stopPropagation();
+                                onNavigate("product", item.id);
+                              }}
                             >
                               🔥 Đấu giá lại ngay
                             </Button>
@@ -658,7 +674,10 @@ export function ProfilePage({ onNavigate }: ProfilePageProps) {
                             <Button
                               variant="outline"
                               className="w-full border-green-500 text-green-600 hover:bg-green-50 font-medium"
-                              onClick={() => onNavigate("auction", item.id)}
+                              onClick={(e: React.MouseEvent) => {
+                                e.stopPropagation();
+                                onNavigate("product", item.id);
+                              }}
                             >
                               Xem chi tiết
                             </Button>
@@ -696,7 +715,7 @@ export function ProfilePage({ onNavigate }: ProfilePageProps) {
                   price={Number(p.current_price || p.start_price)}
                   category="Watchlist"
                   image={p.image || p.images?.[0] || ""}
-                  onViewDetails={(id) => onNavigate("auction", id)}
+                  onViewDetails={(id) => onNavigate("product", id)} // [FIX] Dùng product thay vì auction
                 />
               ))}
               {watchlist.length === 0 && (
@@ -708,60 +727,110 @@ export function ProfilePage({ onNavigate }: ProfilePageProps) {
           </TabsContent>
 
           {/* TAB: FEEDBACK */}
-          <TabsContent value="feedback" className="outline-none">
-            <div className="grid gap-4">
-              {myFeedback.length > 0 ? (
-                myFeedback.map((fb, idx) => (
-                  <div
-                    key={idx}
-                    className="bg-white p-5 rounded-xl border border-gray-200 shadow-sm flex flex-col gap-3"
-                  >
-                    <div className="flex justify-between items-start">
-                      <div className="flex items-center gap-3">
-                        <div
-                          className={`w-8 h-8 rounded-full flex items-center justify-center text-white text-xs font-bold ${
+          <TabsContent value="feedback" className="outline-none space-y-6">
+            
+            {/* Statistics Dashboard */}
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <div className="bg-white p-5 rounded-xl border border-gray-200 shadow-sm flex flex-col items-center justify-center text-center">
+                <div className="w-12 h-12 rounded-full bg-blue-50 flex items-center justify-center mb-2">
+                  <Star className="w-6 h-6 text-blue-600" />
+                </div>
+                <span className="text-3xl font-bold text-gray-900">
+                  {totalFeedbackCount > 0 ? `${positivePercent}%` : "Chưa có"}
+                </span>
+                <span className="text-sm text-gray-500 font-medium">Tỷ lệ tích cực</span>
+              </div>
+
+              <div className="bg-white p-5 rounded-xl border border-gray-200 shadow-sm flex flex-col items-center justify-center text-center">
+                <div className="w-12 h-12 rounded-full bg-green-50 flex items-center justify-center mb-2">
+                  <ThumbsUp className="w-6 h-6 text-green-600" />
+                </div>
+                <span className="text-3xl font-bold text-gray-900">{positiveCount}</span>
+                <span className="text-sm text-gray-500 font-medium">Đánh giá tốt</span>
+              </div>
+
+              <div className="bg-white p-5 rounded-xl border border-gray-200 shadow-sm flex flex-col items-center justify-center text-center">
+                <div className="w-12 h-12 rounded-full bg-red-50 flex items-center justify-center mb-2">
+                  <ThumbsDown className="w-6 h-6 text-red-600" />
+                </div>
+                <span className="text-3xl font-bold text-gray-900">{negativeCount}</span>
+                <span className="text-sm text-gray-500 font-medium">Đánh giá xấu</span>
+              </div>
+            </div>
+
+            {/* Feedback List */}
+            <div className="space-y-4">
+              <h3 className="font-bold text-lg text-gray-800 flex items-center gap-2">
+                <User className="w-5 h-5" />
+                Chi tiết đánh giá
+              </h3>
+              
+              <div className="grid gap-4">
+                {myFeedback.length > 0 ? (
+                  myFeedback.map((fb, idx) => (
+                    <div
+                      key={idx}
+                      className="bg-white p-5 rounded-xl border border-gray-200 shadow-sm flex flex-col gap-3 hover:shadow-md transition-shadow"
+                    >
+                      <div className="flex justify-between items-start">
+                        <div className="flex items-center gap-3">
+                          <div
+                            className={`w-10 h-10 rounded-full flex items-center justify-center text-white shadow-sm ${
+                              fb.score === "positive"
+                                ? "bg-green-500"
+                                : "bg-red-500"
+                            }`}
+                          >
+                            {fb.score === "positive" ? (
+                              <ThumbsUp className="w-5 h-5" />
+                            ) : (
+                              <ThumbsDown className="w-5 h-5" />
+                            )}
+                          </div>
+                          <div>
+                            <p className="font-bold text-gray-900 text-base">
+                              {fb.rater_name || "Người dùng ẩn danh"}
+                            </p>
+                            <p className="text-xs text-gray-500 flex items-center gap-1">
+                              <Clock className="w-3 h-3" />
+                              {new Date(fb.created_at).toLocaleDateString("vi-VN", {
+                                year: 'numeric', month: 'long', day: 'numeric', hour: '2-digit', minute: '2-digit'
+                              })}
+                            </p>
+                          </div>
+                        </div>
+                        <span
+                          className={`px-3 py-1 rounded-full text-xs font-bold border flex items-center gap-1 ${
                             fb.score === "positive"
-                              ? "bg-green-500"
-                              : "bg-red-500"
+                              ? "bg-green-50 text-green-700 border-green-200"
+                              : "bg-red-50 text-red-700 border-red-200"
                           }`}
                         >
                           {fb.score === "positive" ? (
-                            <ThumbsUp className="w-4 h-4" />
+                            <><Check className="w-3 h-3" /> Tích cực (+1)</>
                           ) : (
-                            <ThumbsDown className="w-4 h-4" />
+                            <><X className="w-3 h-3" /> Tiêu cực (-1)</>
                           )}
-                        </div>
-                        <div>
-                          <p className="font-bold text-gray-900">
-                            {fb.rater_name || "Người dùng ẩn danh"}
-                          </p>
-                          <p className="text-xs text-gray-500">
-                            {new Date(fb.created_at).toLocaleDateString()}
-                          </p>
+                        </span>
+                      </div>
+                      
+                      <div className="bg-gray-50 p-4 rounded-lg text-gray-700 italic border border-gray-100 text-sm relative">
+                        <span className="absolute top-2 left-2 text-gray-300 text-4xl leading-none">“</span>
+                        <div className="relative z-10 px-2">
+                            {fb.comment || "Không có nhận xét chi tiết."}
                         </div>
                       </div>
-                      <span
-                        className={`px-2 py-1 rounded text-xs font-bold border ${
-                          fb.score === "positive"
-                            ? "bg-green-50 text-green-700 border-green-200"
-                            : "bg-red-50 text-red-700 border-red-200"
-                        }`}
-                      >
-                        {fb.score === "positive"
-                          ? "+1 Positive"
-                          : "-1 Negative"}
-                      </span>
                     </div>
-                    <div className="bg-gray-50 p-4 rounded-lg text-sm text-gray-700 italic border border-gray-100">
-                      "{fb.comment}"
+                  ))
+                ) : (
+                  <div className="py-16 text-center bg-white rounded-xl border border-dashed border-gray-200 flex flex-col items-center justify-center text-gray-500">
+                    <div className="w-16 h-16 bg-gray-50 rounded-full flex items-center justify-center mb-4">
+                        <Star className="w-8 h-8 text-gray-300" />
                     </div>
+                    <p>Chưa có đánh giá nào về bạn.</p>
                   </div>
-                ))
-              ) : (
-                <div className="py-16 text-center text-gray-500 bg-white rounded-xl border border-dashed border-gray-200">
-                  Chưa có đánh giá nào về bạn.
-                </div>
-              )}
+                )}
+              </div>
             </div>
           </TabsContent>
 
@@ -887,7 +956,7 @@ export function ProfilePage({ onNavigate }: ProfilePageProps) {
                         price={Number(p.current_price)}
                         category="Kho hàng"
                         image={p.image || (p.images && p.images[0]) || ""}
-                        onViewDetails={(id) => onNavigate("auction", id)}
+                        onViewDetails={(id) => onNavigate("product", id)} // [FIX] Dùng product
                       />
                       <Button
                         variant="secondary"
@@ -921,17 +990,22 @@ export function ProfilePage({ onNavigate }: ProfilePageProps) {
                   {soldProducts.map((p) => (
                     <div
                       key={p.id}
-                      className="bg-white border border-gray-200 rounded-xl p-5 shadow-sm"
+                      className="bg-white border border-gray-200 rounded-xl p-5 shadow-sm cursor-pointer hover:shadow-md transition-shadow"
+                      onClick={() => onNavigate("product", p.id)} // [FIX] Thêm click sự kiện ở đây
                     >
                       <div className="flex gap-4 mb-4">
-                        <div className="w-16 h-16 rounded-md bg-gray-100 overflow-hidden shrink-0">
+                        <div
+                          className="w-16 h-16 rounded-md bg-gray-100 overflow-hidden shrink-0"
+                        >
                           <ImageWithFallback
                             src={p.image || ""}
                             className="w-full h-full object-cover"
                           />
                         </div>
                         <div>
-                          <p className="font-bold text-gray-900 line-clamp-1">
+                          <p
+                            className="font-bold text-gray-900 line-clamp-1 hover:text-blue-600"
+                          >
                             {p.name}
                           </p>
                           <p className="text-sm text-green-600 font-bold mt-1">
@@ -950,7 +1024,10 @@ export function ProfilePage({ onNavigate }: ProfilePageProps) {
                         (p as any).transaction_status === "completed" ? (
                           <Button
                             className="w-full bg-green-100 text-green-700 hover:bg-green-200 border-0"
-                            onClick={() => handleOpenRateWinner(p)}
+                            onClick={(e: React.MouseEvent) => {
+                              e.stopPropagation();
+                              handleOpenRateWinner(p);
+                            }}
                           >
                             <ThumbsUp className="w-4 h-4 mr-2" /> Đánh giá người
                             mua
@@ -958,7 +1035,10 @@ export function ProfilePage({ onNavigate }: ProfilePageProps) {
                         ) : (
                           <Button
                             className="w-full bg-blue-600 hover:bg-blue-700 text-black shadow-sm"
-                            onClick={() => handleOpenTransaction(p)}
+                            onClick={(e: React.MouseEvent) => {
+                              e.stopPropagation();
+                              handleOpenTransaction(p);
+                            }}
                           >
                             Quản lý đơn hàng
                           </Button>
