@@ -13,9 +13,9 @@ const pool = new Pool({
   // Giữ nguyên cấu hình SSL của bạn
   ssl: { rejectUnauthorized: false },
 
-  max: 5,
+  max: 20,
   idleTimeoutMillis: 10000,
-  connectionTimeoutMillis: 2000,
+  connectionTimeoutMillis: 10000,
 });
 
 pool.on("connect", (client) => {
